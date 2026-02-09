@@ -1,0 +1,7 @@
+{
+  "name": "My Home - Marcenaria",
+  "description": "A complete, modern management system for carpentry shops featuring smart budgeting, Trello-style boards, inventory control, and AI-driven pricing suggestions.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
