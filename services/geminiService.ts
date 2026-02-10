@@ -11,11 +11,8 @@ const getAiModel = () => {
   
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-    // Configuração para forçar resposta em JSON
-    generationConfig: {
-      responseMimeType: "application/json"
-    }
+    model: "gemini-1.5-flash"
+    // generationConfig removido para evitar erro de tipo TS, o JSON será forçado via prompt
   });
 };
 
@@ -29,7 +26,7 @@ export const getFinancialPrediction = async (
   if (!model) return null;
 
   const prompt = `
-    Analise o cenário financeiro desta marcenaria e retorne APENAS um objeto JSON com o seguinte formato, sem formatação markdown:
+    Analise o cenário financeiro desta marcenaria e retorne APENAS um objeto JSON válido (sem markdown, sem backticks) com o seguinte formato:
     {
       "estimatedRevenue": number,
       "estimatedProfit": number,
@@ -43,7 +40,7 @@ export const getFinancialPrediction = async (
     - Total de Despesas (Fixas + Materiais): R$ ${expenses}
     - Projetos Ativos em Produção: ${activeProjectsCount}
     
-    Baseado nisso, calcule uma previsão realista para o próximo mês (estimatedRevenue e estimatedProfit), identifique riscos (riskAlerts) e sugira melhorias (suggestions).
+    Baseado nisso, calcule uma previsão realista para o próximo mês.
   `;
 
   try {
@@ -51,7 +48,7 @@ export const getFinancialPrediction = async (
     const response = await result.response;
     const text = response.text();
     
-    // Limpeza de segurança caso a IA retorne blocos de código markdown mesmo com instrução JSON
+    // Limpeza de segurança para remover ```json e ``` caso a IA os inclua
     const cleanText = text.replace(/```json|```/g, '').trim();
     
     return JSON.parse(cleanText) as FinancialPrediction;
@@ -67,7 +64,7 @@ export const getDailyVerse = async (): Promise<BibleVerse | null> => {
 
   const prompt = `
     Selecione um versículo bíblico motivador que se relacione com trabalho duro, excelência, sabedoria ou construção/carpintaria.
-    Retorne APENAS um objeto JSON no seguinte formato:
+    Retorne APENAS um objeto JSON válido (sem markdown, sem backticks) no seguinte formato:
     {
       "text": "O texto do versículo",
       "reference": "Livro Capítulo:Versículo",

@@ -396,9 +396,10 @@ const Finance: React.FC<FinanceProps> = ({
   );
 
   const renderHistory = () => {
-    const transactions = [];
+    // Explicit typing for transactions array to avoid implicit any[] error
+    const transactions: any[] = [];
 
-    filteredData.projects.forEach(p => {
+    filteredData.projects.forEach((p: any) => {
       if (p.isPaid) {
         transactions.push({ id: `p-${p.id}`, desc: `Projeto: ${p.name}`, val: p.value, type: 'in', date: p.deadline, cat: 'Projeto' });
       } else if (p.isAdvancePaid && p.advanceValue) {
@@ -406,27 +407,27 @@ const Finance: React.FC<FinanceProps> = ({
       }
     });
 
-    filteredData.manualRevenues.forEach(r => {
+    filteredData.manualRevenues.forEach((r: any) => {
       transactions.push({ id: `mr-${r.id}`, desc: r.description, val: r.value, type: 'in', date: r.date, cat: 'Avulso' });
     });
 
-    filteredData.fixedExpenses.forEach(e => {
+    filteredData.fixedExpenses.forEach((e: any) => {
       const isPaid = e.isRecurring ? e.paidMonths?.includes(currentMonthYear) : e.status === 'Pago';
       if (isPaid) {
         transactions.push({ id: `fe-${e.id}`, desc: e.description, val: e.value, type: 'out', date: e.dueDate, cat: e.category });
       }
     });
 
-    filteredData.debts.forEach(d => {
+    filteredData.debts.forEach((d: any) => {
       if (d.status === 'Pago') {
         transactions.push({ id: `d-${d.id}`, desc: d.description, val: d.value, type: 'out', date: d.dueDate, cat: 'Material' });
       }
     });
 
-    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    transactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const totalIn = transactions.filter(t => t.type === 'in').reduce((sum, t) => sum + t.val, 0);
-    const totalOut = transactions.filter(t => t.type === 'out').reduce((sum, t) => sum + t.val, 0);
+    const totalIn = transactions.filter((t: any) => t.type === 'in').reduce((sum: number, t: any) => sum + t.val, 0);
+    const totalOut = transactions.filter((t: any) => t.type === 'out').reduce((sum: number, t: any) => sum + t.val, 0);
     const balance = totalIn - totalOut;
 
     return (
@@ -486,7 +487,7 @@ const Finance: React.FC<FinanceProps> = ({
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-[#2D473905]">
-                    {transactions.map(t => (
+                    {transactions.map((t: any) => (
                        <tr key={t.id} className="group hover:bg-[#FDFBE2]/30 transition-all">
                           <td className="py-5 pl-4">
                              <span className="text-xs font-bold text-[#2D473966]">{new Date(t.date).toLocaleDateString()}</span>
