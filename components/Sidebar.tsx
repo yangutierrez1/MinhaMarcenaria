@@ -83,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEdi
           <div className="relative cursor-pointer" onClick={onEditBrand}>
             <div className="w-20 h-20 bg-[#2D4739] rounded-[1.75rem] flex items-center justify-center shadow-2xl border border-[#ffffff11] relative overflow-hidden transition-all duration-500 group-hover:rotate-6">
                {brand.logoUrl ? (
-                  <img src={brand.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+                  <img src={brand.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                ) : (
                   <>
                     <div className="absolute top-0 left-0 w-full h-full opacity-10 flex flex-col">

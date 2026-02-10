@@ -41,8 +41,8 @@ const resizeImage = (file: File): Promise<string> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const elem = document.createElement('canvas');
-        // Reduzido para 200px para garantir que salve no banco sem erro de Payload
-        const MAX_SIZE = 200; 
+        // Reduzido para 150px para garantir extrema leveza e compatibilidade com storage
+        const MAX_SIZE = 150; 
         
         let width = img.width;
         let height = img.height;
@@ -70,8 +70,8 @@ const resizeImage = (file: File): Promise<string> => {
            ctx.fillRect(0, 0, width, height);
            ctx.drawImage(img, 0, 0, width, height);
            
-           // Qualidade 0.6 garante um arquivo bem leve (< 50kb)
-           resolve(elem.toDataURL('image/jpeg', 0.6)); 
+           // Qualidade 0.7 oferece bom compromisso entre tamanho e visual para logos pequenas
+           resolve(elem.toDataURL('image/jpeg', 0.7)); 
         } else {
            reject(new Error("Falha ao processar contexto da imagem"));
         }
