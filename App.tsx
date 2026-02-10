@@ -31,7 +31,7 @@ const tabMeta: Record<string, { title: string; subtitle: string }> = {
   agenda: { title: 'Agenda', subtitle: 'Compromissos' },
 };
 
-// --- HELPER DE COMPRESSÃO DE IMAGEM ---
+// --- HELPER DE COMPRESSÃO DE IMAGEM OTIMIZADO ---
 const resizeImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -41,22 +41,22 @@ const resizeImage = (file: File): Promise<string> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const elem = document.createElement('canvas');
-        const MAX_WIDTH = 300; 
-        const MAX_HEIGHT = 300;
+        // Reduzido para 200px para garantir que salve no banco sem erro de Payload
+        const MAX_SIZE = 200; 
         
         let width = img.width;
         let height = img.height;
 
-        // Calculate new dimensions
+        // Lógica de redimensionamento mantendo proporção
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
           }
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
           }
         }
 
@@ -65,14 +65,15 @@ const resizeImage = (file: File): Promise<string> => {
         
         const ctx = elem.getContext('2d');
         if (ctx) {
-           // White background for transparent PNGs converted to JPEG
+           // Fundo branco para imagens transparentes (PNG) virarem JPEG corretamente
            ctx.fillStyle = '#FFFFFF';
            ctx.fillRect(0, 0, width, height);
            ctx.drawImage(img, 0, 0, width, height);
-           // Force JPEG 0.7 quality regardless of original size
-           resolve(elem.toDataURL('image/jpeg', 0.7)); 
+           
+           // Qualidade 0.6 garante um arquivo bem leve (< 50kb)
+           resolve(elem.toDataURL('image/jpeg', 0.6)); 
         } else {
-           reject(new Error("Canvas context failed"));
+           reject(new Error("Falha ao processar contexto da imagem"));
         }
       };
       img.onerror = (error) => reject(error);
@@ -87,6 +88,7 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   
   // Mobile Menu State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -217,7 +219,7 @@ const App: React.FC = () => {
         }
     } catch (error) {
         console.error("Failed to save brand config:", error);
-        alert("Erro ao salvar configurações. Verifique sua conexão ou tente uma imagem menor.");
+        alert("Erro ao salvar configurações. A imagem pode ser muito grande, tente uma menor.");
         // Revert optimistic update on failure
         setBrandConfig(previousConfig);
     }
@@ -226,13 +228,16 @@ const App: React.FC = () => {
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsProcessingImage(true);
       try {
-        // Usa o helper para redimensionar antes de setar o estado
+        // Usa o helper otimizado para redimensionar
         const resizedBase64 = await resizeImage(file);
         setTempBrandConfig(prev => ({ ...prev, logoUrl: resizedBase64 }));
       } catch (error) {
         console.error("Error processing image", error);
-        alert("Erro ao processar a imagem. Tente outro arquivo.");
+        alert("Erro ao processar a imagem. Tente outro arquivo JPG ou PNG.");
+      } finally {
+        setIsProcessingImage(false);
       }
     }
   };
@@ -848,7 +853,7 @@ const App: React.FC = () => {
                <div className="flex items-center gap-6">
                   {tempBrandConfig.logoUrl ? (
                     <div className="w-20 h-20 rounded-2xl bg-[#2D4739] border border-[#2D473911] overflow-hidden flex-shrink-0 relative group">
-                        <img src={tempBrandConfig.logoUrl} alt="Logo Preview" className="w-full h-full object-cover" />
+                        <img src={tempBrandConfig.logoUrl} alt="Logo Preview" className="w-full h-full object-contain bg-white" />
                         <button 
                            onClick={() => setTempBrandConfig(prev => ({ ...prev, logoUrl: '' }))}
                            className="absolute inset-0 bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -862,17 +867,18 @@ const App: React.FC = () => {
                     </div>
                   )}
                   
-                  <div className="flex-1">
-                      <label className="flex items-center gap-3 w-full p-4 bg-white rounded-2xl border border-[#2D473911] cursor-pointer hover:border-[#6B8E23] transition-all group">
+                  <div className="flex-1 space-y-2">
+                      <label className={`flex items-center gap-3 w-full p-4 bg-white rounded-2xl border border-[#2D473911] cursor-pointer hover:border-[#6B8E23] transition-all group ${isProcessingImage ? 'opacity-50 pointer-events-none' : ''}`}>
                          <div className="p-2 bg-[#FDFBE2] text-[#2D4739] rounded-xl group-hover:bg-[#2D4739] group-hover:text-[#FDFBE2] transition-colors">
-                            <Upload size={18} />
+                            {isProcessingImage ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
                          </div>
                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black text-[#2D4739] uppercase tracking-wider">Escolher Arquivo</p>
+                            <p className="text-xs font-black text-[#2D4739] uppercase tracking-wider">{isProcessingImage ? 'Processando...' : 'Escolher Arquivo'}</p>
                             <p className="text-[9px] font-bold text-[#2D473966] truncate">JPG, PNG ou GIF (Max 1MB)</p>
                          </div>
-                         <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                         <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" disabled={isProcessingImage} />
                       </label>
+                      <p className="text-[9px] text-[#2D473944] font-bold">A imagem será redimensionada automaticamente.</p>
                   </div>
                </div>
             </div>

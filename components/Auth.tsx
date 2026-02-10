@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Leaf, Mail, Lock, Loader2, ArrowRight, AlertCircle, CheckCircle2, UserPlus, LogIn } from 'lucide-react';
+import { Leaf, Mail, Lock, Loader2, ArrowRight, AlertCircle, CheckCircle2, UserPlus, LogIn, Eye } from 'lucide-react';
 
 interface AuthProps {}
 
@@ -9,7 +9,7 @@ const Auth: React.FC<AuthProps> = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); // New field for registration
+  const [confirmPassword, setConfirmPassword] = useState(''); 
   const [message, setMessage] = useState<{ text: string, type: 'error' | 'success' } | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -59,6 +59,23 @@ const Auth: React.FC<AuthProps> = () => {
       setMessage({ text: errorMsg, type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDemoMode = async () => {
+    setLoading(true);
+    // Tenta login com credenciais de demo (funciona automaticamente no modo Mock)
+    try {
+        const { error } = await supabase.auth.signInWithPassword({
+            email: 'demo@myhome.com',
+            password: 'demo'
+        });
+        if (error) throw error;
+    } catch (error: any) {
+        console.error(error);
+        setMessage({ text: 'Não foi possível entrar no modo demonstração.', type: 'error' });
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -175,6 +192,15 @@ const Auth: React.FC<AuthProps> = () => {
                   <ArrowRight size={18} />
                 </>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDemoMode}
+              disabled={loading}
+              className="w-full py-3 bg-white border border-[#2D473911] text-[#2D4739] rounded-2xl font-black uppercase tracking-widest hover:bg-[#FDFBE2]/50 transition-all flex items-center justify-center gap-2 text-[10px] disabled:opacity-50"
+            >
+               <Eye size={14} /> Modo Demonstração
             </button>
           </form>
         </div>

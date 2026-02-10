@@ -34,7 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEdi
     { id: 'budgets', label: 'Orçamentos', icon: Calculator },
     { id: 'projects', label: 'Projetos', icon: FolderKanban },
     { id: 'tasks', label: 'Tarefas', icon: Trello },
-    { id: 'pendencies', label: 'Pendências', icon: ClipboardList }, // Added locally for icon usage, assumed imported above
+    { id: 'pendencies', label: 'Pendências', icon: ClipboardList }, 
     { id: 'inventory', label: 'Estoque', icon: Package },
     { id: 'finance', label: 'Financeiro', icon: DollarSign },
     { id: 'clients', label: 'Clientes', icon: Users },
@@ -83,7 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEdi
           <div className="relative cursor-pointer" onClick={onEditBrand}>
             <div className="w-20 h-20 bg-[#2D4739] rounded-[1.75rem] flex items-center justify-center shadow-2xl border border-[#ffffff11] relative overflow-hidden transition-all duration-500 group-hover:rotate-6">
                {brand.logoUrl ? (
-                  <img src={brand.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                  <img src={brand.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
                ) : (
                   <>
                     <div className="absolute top-0 left-0 w-full h-full opacity-10 flex flex-col">
@@ -151,7 +151,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEdi
   );
 };
 
-// Assuming ClipboardList is needed, adding import if missing in context or using a placeholder
 import { ClipboardList } from 'lucide-react'; 
 
 export default Sidebar;
