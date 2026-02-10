@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI as GoogleGenAI } from "@google/generative-ai";
 import { FinancialPrediction, BibleVerse } from "../types";
 
 // Lazy initialization of the AI client to avoid crashes if API Key is missing on module load
