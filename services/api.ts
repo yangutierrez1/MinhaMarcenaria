@@ -1,11 +1,11 @@
 import { supabase } from './supabaseClient';
 import { Project, Material, Client, Budget, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, AgendaEvent } from '../types';
 
-// Helper para garantir que campos JSON não venham nulos
+// Helper para garantir que campos JSON não venham nulos do banco
 const sanitizeItem = (item: any) => {
   if (!item) return item;
   
-  // Lista de campos que devem ser sempre arrays no frontend
+  // Lista de campos que devem ser sempre arrays no frontend para evitar erros de .map()
   const arrayFields = [
     'subtasks', 
     'materials', 
@@ -27,25 +27,36 @@ const sanitizeItem = (item: any) => {
   return item;
 };
 
-// Helper genérico para CRUD
+// Helper genérico para CRUD com segurança de user_id
 const createCrud = <T>(table: string) => ({
   getAll: async () => {
+    // O select usa RLS (Row Level Security) do Supabase para filtrar automaticamente pelo usuário logado
     const { data, error } = await supabase.from(table).select('*');
     if (error) throw error;
-    // Sanitiza cada item retornado
     return (data || []).map(sanitizeItem) as T[];
   },
+  
   create: async (item: T) => {
-    const { data, error } = await supabase.from(table).insert(item).select().single();
+    // Garante que o user_id esteja presente no payload de inserção
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Se houver usuário logado, injetamos o user_id, senão tentamos inserir sem (vai falhar se o banco exigir, o que é correto)
+    const payload = user ? { ...item, user_id: user.id } : item;
+    
+    const { data, error } = await supabase.from(table).insert(payload).select().single();
     if (error) throw error;
     return sanitizeItem(data) as T;
   },
+  
   update: async (id: string, updates: Partial<T>) => {
+    // RLS garante que só podemos atualizar registros que nos pertencem
     const { data, error } = await supabase.from(table).update(updates).eq('id', id).select().single();
     if (error) throw error;
     return sanitizeItem(data) as T;
   },
+  
   delete: async (id: string) => {
+    // RLS garante que só podemos deletar registros que nos pertencem
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) throw error;
   }
