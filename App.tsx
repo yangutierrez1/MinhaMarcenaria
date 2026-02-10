@@ -31,6 +31,40 @@ const tabMeta: Record<string, { title: string; subtitle: string }> = {
   agenda: { title: 'Agenda', subtitle: 'Compromissos' },
 };
 
+// --- HELPER DE COMPRESSÃO DE IMAGEM ---
+const resizeImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const elem = document.createElement('canvas');
+        const MAX_WIDTH = 400; // Limita largura a 400px
+        const scaleFactor = MAX_WIDTH / img.width;
+        
+        // Se a imagem for menor, usa o tamanho original
+        if (scaleFactor >= 1) {
+             resolve(event.target?.result as string);
+             return;
+        }
+
+        elem.width = MAX_WIDTH;
+        elem.height = img.height * scaleFactor;
+        
+        const ctx = elem.getContext('2d');
+        ctx?.drawImage(img, 0, 0, elem.width, elem.height);
+        
+        // Exporta como JPEG com qualidade 0.8 para reduzir tamanho
+        resolve(elem.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -139,44 +173,51 @@ const App: React.FC = () => {
   };
 
   const handleSaveBrandConfig = async () => {
+    const previousConfig = brandConfig;
+    
     // Optimistic Update
     setBrandConfig(tempBrandConfig);
     setIsBrandModalOpen(false);
 
     try {
+        let result;
         // Save to Database
         if (brandConfig.id) {
             // Update existing
-            await api.brandSettings.update(brandConfig.id, tempBrandConfig);
+            result = await api.brandSettings.update(brandConfig.id, tempBrandConfig);
         } else {
             // Create new (Check if one exists first just in case to avoid duplicates if reload was weird)
             const existing = await api.brandSettings.getAll();
             if (existing && existing.length > 0) {
-                await api.brandSettings.update(existing[0].id!, tempBrandConfig);
-                setBrandConfig(prev => ({...prev, id: existing[0].id}));
+                result = await api.brandSettings.update(existing[0].id!, tempBrandConfig);
             } else {
-                const newConfig = await api.brandSettings.create(tempBrandConfig);
-                setBrandConfig(newConfig);
+                result = await api.brandSettings.create(tempBrandConfig);
             }
+        }
+        
+        // Update with true server data (ensures ID is set)
+        if (result) {
+            setBrandConfig(result);
         }
     } catch (error) {
         console.error("Failed to save brand config:", error);
+        alert("Erro ao salvar configurações. Verifique sua conexão ou tente uma imagem menor.");
+        // Revert optimistic update on failure
+        setBrandConfig(previousConfig);
     }
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (limit to ~1MB for DB storage safety)
-      if (file.size > 1024 * 1024) {
-          alert("A imagem é muito grande. Por favor, escolha uma imagem menor que 1MB.");
-          return;
+      try {
+        // Usa o helper para redimensionar antes de setar o estado
+        const resizedBase64 = await resizeImage(file);
+        setTempBrandConfig(prev => ({ ...prev, logoUrl: resizedBase64 }));
+      } catch (error) {
+        console.error("Error processing image", error);
+        alert("Erro ao processar a imagem. Tente outro arquivo.");
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTempBrandConfig(prev => ({ ...prev, logoUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
     }
   };
 
