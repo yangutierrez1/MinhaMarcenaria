@@ -1,14 +1,13 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { FinancialPrediction, BibleVerse } from "../types";
 
-// Inicialização segura do cliente de IA
+// Lazy initialization of the AI client to avoid crashes if API Key is missing on module load
 const getAiClient = () => {
-  const apiKey = import.meta.env.VITE_API_KEY;
+  const apiKey = import.meta.env?.VITE_API_KEY;
   if (!apiKey) {
     return null;
   }
-  // CORREÇÃO: Passando a string da chave diretamente
-  return new GoogleGenerativeAI(apiKey);
+  return new GoogleGenAI({ apiKey });
 };
 
 export const getFinancialPrediction = async (
@@ -25,19 +24,39 @@ export const getFinancialPrediction = async (
   }
 
   try {
-    // CORREÇÃO: Usando getGenerativeModel em vez de .models
-    const model = ai.getGenerativeModel({ model: "gemini-pro" });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        role: "user",
+        parts: [{
+          text: `Analise o cenário financeiro desta marcenaria:
+          - Faturamento Realizado: R$ ${currentRevenue}
+          - Faturamento Pendente (Sinais/A receber): R$ ${pendingRevenue}
+          - Total de Despesas (Fixas + Materiais): R$ ${expenses}
+          - Projetos Ativos em Produção: ${activeProjectsCount}
+          
+          Forneça uma previsão para o próximo mês, identifique riscos e sugira melhorias.`
+        }]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            estimatedRevenue: { type: Type.NUMBER },
+            estimatedProfit: { type: Type.NUMBER },
+            riskAlerts: { type: Type.ARRAY, items: { type: Type.STRING } },
+            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["estimatedRevenue", "estimatedProfit", "riskAlerts", "suggestions"]
+        }
+      }
+    });
 
-    const prompt = `Atue como um consultor financeiro para marcenaria. 
-    Receita atual: ${currentRevenue}, Receita pendente: ${pendingRevenue}, 
-    Despesas: ${expenses}, Projetos ativos: ${activeProjectsCount}.
-    Retorne um JSON com: status (string), message (string), recommendations (array de strings).`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return JSON.parse(response.text());
+    const text = response.text;
+    return text ? JSON.parse(text.trim()) : null;
   } catch (error) {
-    console.error("Erro na previsão financeira:", error);
+    console.error("Financial prediction failed:", error);
     return null;
   }
 };
@@ -47,14 +66,27 @@ export const getDailyVerse = async (): Promise<BibleVerse | null> => {
   if (!ai) return null;
 
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-pro" });
-    const prompt = "Retorne um versículo bíblico motivador para um marceneiro em formato JSON com campos 'text' e 'reference'.";
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        role: "user",
+        parts: [{ text: "Selecione um versículo bíblico motivador que se relacione com trabalho duro, excelência ou carpintaria." }]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            text: { type: Type.STRING },
+            reference: { type: Type.STRING },
+            meaning: { type: Type.STRING },
+          },
+          required: ["text", "reference", "meaning"]
+        }
+      }
+    });
     
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return JSON.parse(response.text());
-  } catch (error) {
-    console.error("Erro ao obter versículo:", error);
-    return null;
-  }
+    const text = response.text;
+    return text ? JSON.parse(text.trim()) : null;
+  } catch { return null; }
 };

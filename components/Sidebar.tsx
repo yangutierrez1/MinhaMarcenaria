@@ -6,13 +6,12 @@ import {
   Calculator, 
   Package, 
   Users, 
-  Settings,
   Leaf,
   Edit3,
-  ClipboardList,
   DollarSign,
   CalendarDays,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,15 +25,16 @@ interface SidebarProps {
   onEditBrand: () => void;
   isOpen: boolean;
   onClose: () => void;
+  onLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEditBrand, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEditBrand, isOpen, onClose, onLogout }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
     { id: 'budgets', label: 'Orçamentos', icon: Calculator },
     { id: 'projects', label: 'Projetos', icon: FolderKanban },
     { id: 'tasks', label: 'Tarefas', icon: Trello },
-    { id: 'pendencies', label: 'Pendências', icon: ClipboardList },
+    { id: 'pendencies', label: 'Pendências', icon: ClipboardList }, // Added locally for icon usage, assumed imported above
     { id: 'inventory', label: 'Estoque', icon: Package },
     { id: 'finance', label: 'Financeiro', icon: DollarSign },
     { id: 'clients', label: 'Clientes', icon: Users },
@@ -135,9 +135,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEdi
             </button>
           ))}
         </nav>
+
+        {/* Botão Sair */}
+        <div className="p-4 border-t border-[#ffffff08]">
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-white/40 hover:bg-red-500/10 hover:text-red-400 transition-all duration-300 group"
+          >
+            <LogOut size={22} className="group-hover:text-red-400" />
+            <span className="font-black text-sm tracking-wide">Sair do Sistema</span>
+          </button>
+        </div>
       </aside>
     </>
   );
 };
+
+// Assuming ClipboardList is needed, adding import if missing in context or using a placeholder
+import { ClipboardList } from 'lucide-react'; 
 
 export default Sidebar;

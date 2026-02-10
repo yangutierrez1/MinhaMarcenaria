@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './services/supabaseClient';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Board from './components/Board';
@@ -9,10 +10,11 @@ import Pendencies from './components/Pendencies';
 import TaskBoard from './components/TaskBoard';
 import Finance from './components/Finance';
 import Agenda from './components/Agenda';
+import Auth from './components/Auth';
 import Modal from './components/ui/Modal';
 import Button from './components/ui/Button';
 import { Project, Material, Client, Budget, BibleVerse, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, TaskStatus, AgendaEvent } from './types';
-import { STATUS_COLUMNS } from './constants';
+import { STATUS_COLUMNS, INITIAL_MATERIALS, INITIAL_CLIENTS, INITIAL_PROJECTS } from './constants';
 import { getDailyVerse } from './services/geminiService';
 import { api } from './services/api';
 import { Bell, User, Quote, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
@@ -37,6 +39,10 @@ const tabMeta: Record<string, { title: string; subtitle: string }> = {
 };
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   
@@ -74,12 +80,32 @@ const App: React.FC = () => {
   
   const [monthlyGoal, setMonthlyGoal] = useState(30000);
 
-  // --- INITIAL LOAD ---
+  // --- AUTH CHECK ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // --- INITIAL DATA LOAD ---
   useEffect(() => {
     const initData = async () => {
+      if (!session && !isDemoMode) return; 
+
       setIsLoading(true);
       try {
         const data = await api.loadAll();
+        // Em modo Demo, se a API retornar vazio, podemos popular com dados iniciais fictícios se necessário
+        // Por enquanto vamos usar o que vier da API (que no mock será vazio)
         setProjects(data.projects);
         setMaterials(data.materials);
         setClients(data.clients);
@@ -96,18 +122,27 @@ const App: React.FC = () => {
         if (dailyVerse) setVerse(dailyVerse);
         
         // Load Brand from LocalStorage
-        const savedBrand = localStorage.getItem('brandConfig');
-        if (savedBrand) setBrandConfig(JSON.parse(savedBrand));
+        const userId = session?.user?.id || 'demo_user';
+        const savedBrand = localStorage.getItem(`brandConfig_${userId}`);
+        if (savedBrand) {
+          setBrandConfig(JSON.parse(savedBrand));
+        } else {
+           setBrandConfig({
+            logoUrl: '',
+            name: 'My Home',
+            slogan: 'Marcenaria',
+            userName: session?.user?.email?.split('@')[0] || 'Visitante'
+          });
+        }
 
       } catch (error) {
         console.error("Erro ao carregar dados do Supabase:", error);
-        // alert("Erro ao conectar com o banco de dados."); // Opcional: remover para UX
       } finally {
         setIsLoading(false);
       }
     };
     initData();
-  }, []);
+  }, [session, isDemoMode]);
 
   const handleOpenBrandModal = () => {
     setTempBrandConfig(brandConfig);
@@ -115,8 +150,9 @@ const App: React.FC = () => {
   };
 
   const handleSaveBrandConfig = () => {
+    const userId = session?.user?.id || 'demo_user';
     setBrandConfig(tempBrandConfig);
-    localStorage.setItem('brandConfig', JSON.stringify(tempBrandConfig));
+    localStorage.setItem(`brandConfig_${userId}`, JSON.stringify(tempBrandConfig));
     setIsBrandModalOpen(false);
   };
 
@@ -129,6 +165,20 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsDemoMode(false);
+    setProjects([]);
+    setMaterials([]);
+    setClients([]);
+    setBudgets([]);
+    // Limpa estados...
+  };
+
+  const handleLoginDemo = () => {
+    setIsDemoMode(true);
   };
 
   // --- TASKS HANDLERS ---
@@ -382,7 +432,6 @@ const App: React.FC = () => {
   const handleAddDebt = async (debtData: any) => {
     const newId = Math.random().toString(36).substr(2, 9);
     
-    // Process Manual Materials creation if necessary
     if (debtData.manualMaterials && debtData.manualMaterials.length > 0) {
       const updatedMaterials = [...materials];
       
@@ -502,7 +551,6 @@ const App: React.FC = () => {
     await api.projects.create(newProject);
     syncProjectToAgenda(newProject);
 
-    // Deduct Stock
     if (budgetData.materials && budgetData.materials.length > 0) {
       const matUpdates = materials.map(stockMat => {
         const itemToDeduct = budgetData.materials.find((m: any) => m.materialId === stockMat.id);
@@ -573,7 +621,21 @@ const App: React.FC = () => {
     await api.clients.delete(id);
   };
 
-  // --- RENDER ---
+  // --- AUTH LOADING STATE ---
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#FDFBE2] flex items-center justify-center wood-texture">
+         <Loader2 size={64} className="text-[#2D4739] animate-spin" />
+      </div>
+    );
+  }
+
+  // --- IF NOT LOGGED IN & NOT DEMO, SHOW AUTH ---
+  if (!session && !isDemoMode) {
+    return <Auth onLoginDemo={handleLoginDemo} />;
+  }
+
+  // --- RENDER MAIN APP ---
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -609,6 +671,7 @@ const App: React.FC = () => {
         onEditBrand={handleOpenBrandModal} 
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
+        onLogout={handleLogout}
       />
       
       <main className="flex-1 w-full lg:ml-64 px-6 md:px-10 pt-8 pb-32 min-h-screen min-w-0 transition-all duration-300">
@@ -629,6 +692,12 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto md:flex-1 justify-end">
+             {isDemoMode && (
+                <div className="hidden md:flex items-center px-4 py-2 bg-[#6B8E23]/10 text-[#6B8E23] rounded-full text-[10px] font-black uppercase tracking-widest border border-[#6B8E23]/20">
+                   Modo Demonstração (Sem Banco de Dados)
+                </div>
+             )}
+
              <div className="hidden md:flex justify-center flex-1 min-w-0 max-w-lg">
                 <div className="w-full bg-white/40 border border-[#2D473911] rounded-[2rem] p-5 shadow-sm">
                   {verse && (
