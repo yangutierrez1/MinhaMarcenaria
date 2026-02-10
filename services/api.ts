@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Project, Material, Client, Budget, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, AgendaEvent } from '../types';
+import { Project, Material, Client, Budget, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, AgendaEvent, BrandConfig } from '../types';
 
 // Helper para garantir que campos JSON não venham nulos do banco
 const sanitizeItem = (item: any) => {
@@ -73,12 +73,13 @@ export const api = {
   debts: createCrud<Debt>('debts'),
   revenues: createCrud<ManualRevenue>('revenues'),
   events: createCrud<AgendaEvent>('events'),
+  brandSettings: createCrud<BrandConfig>('brand_settings'),
   
   // Função para carregar tudo de uma vez (Dashboard load)
   loadAll: async () => {
     const [
       projects, materials, clients, budgets, tasks, 
-      pendencies, fixedExpenses, debts, revenues, events
+      pendencies, fixedExpenses, debts, revenues, events, brandSettings
     ] = await Promise.all([
       api.projects.getAll(),
       api.materials.getAll(),
@@ -89,12 +90,13 @@ export const api = {
       api.fixedExpenses.getAll(),
       api.debts.getAll(),
       api.revenues.getAll(),
-      api.events.getAll()
+      api.events.getAll(),
+      api.brandSettings.getAll().catch(() => []) // Fallback se a tabela não existir ainda
     ]);
     
     return {
       projects, materials, clients, budgets, tasks, 
-      pendencies, fixedExpenses, debts, revenues, events
+      pendencies, fixedExpenses, debts, revenues, events, brandSettings
     };
   }
 };

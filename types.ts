@@ -6,6 +6,14 @@ export type TaskCategory = 'Routine' | 'Complex' | 'Project';
 export type EventType = 'Produção' | 'Entrega' | 'Reunião' | 'Visita Técnica' | 'Compra' | 'Manutenção' | 'Pessoal';
 export type EventStatus = 'Agendado' | 'Confirmado' | 'Concluído' | 'Cancelado' | 'Atrasado';
 
+export interface BrandConfig {
+  id?: string;
+  logoUrl: string;
+  name: string;
+  slogan: string;
+  userName: string;
+}
+
 export interface AgendaEvent {
   id: string;
   title: string;

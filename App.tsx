@@ -13,18 +13,11 @@ import Agenda from './components/Agenda';
 import Auth from './components/Auth';
 import Modal from './components/ui/Modal';
 import Button from './components/ui/Button';
-import { Project, Material, Client, Budget, BibleVerse, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, TaskStatus, AgendaEvent } from './types';
+import { Project, Material, Client, Budget, BibleVerse, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, TaskStatus, AgendaEvent, BrandConfig } from './types';
 import { STATUS_COLUMNS, INITIAL_MATERIALS, INITIAL_CLIENTS, INITIAL_PROJECTS } from './constants';
 import { getDailyVerse } from './services/geminiService';
 import { api } from './services/api';
 import { Bell, User, Quote, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
-
-interface BrandConfig {
-  logoUrl: string;
-  name: string;
-  slogan: string;
-  userName: string;
-}
 
 const tabMeta: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Painel de Controle', subtitle: 'Visão geral' },
@@ -48,7 +41,7 @@ const App: React.FC = () => {
   // Mobile Menu State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Brand Configuration State (Local Storage for simplicity on this one)
+  // Brand Configuration State
   const [brandConfig, setBrandConfig] = useState<BrandConfig>({
     logoUrl: '',
     name: 'My Home',
@@ -114,26 +107,23 @@ const App: React.FC = () => {
         setManualRevenues(data.revenues);
         setEvents(data.events);
 
-        // Load Verse
-        const dailyVerse = await getDailyVerse();
-        if (dailyVerse) setVerse(dailyVerse);
-        
-        // Load Brand from LocalStorage
-        const userId = session?.user?.id;
-        if (userId) {
-            const savedBrand = localStorage.getItem(`brandConfig_${userId}`);
-            if (savedBrand) {
-              setBrandConfig(JSON.parse(savedBrand));
-            } else {
-               setBrandConfig({
+        // Load Brand Settings from DB
+        if (data.brandSettings && data.brandSettings.length > 0) {
+            setBrandConfig(data.brandSettings[0]);
+        } else {
+            // Default initialization if nothing in DB
+             setBrandConfig({
                 logoUrl: '',
                 name: 'My Home',
                 slogan: 'Marcenaria',
                 userName: session?.user?.email?.split('@')[0] || 'Visitante'
-              });
-            }
+             });
         }
 
+        // Load Verse
+        const dailyVerse = await getDailyVerse();
+        if (dailyVerse) setVerse(dailyVerse);
+        
       } catch (error) {
         console.error("Erro ao carregar dados do Supabase:", error);
       } finally {
@@ -148,18 +138,40 @@ const App: React.FC = () => {
     setIsBrandModalOpen(true);
   };
 
-  const handleSaveBrandConfig = () => {
-    const userId = session?.user?.id;
-    if (userId) {
-        setBrandConfig(tempBrandConfig);
-        localStorage.setItem(`brandConfig_${userId}`, JSON.stringify(tempBrandConfig));
-    }
+  const handleSaveBrandConfig = async () => {
+    // Optimistic Update
+    setBrandConfig(tempBrandConfig);
     setIsBrandModalOpen(false);
+
+    try {
+        // Save to Database
+        if (brandConfig.id) {
+            // Update existing
+            await api.brandSettings.update(brandConfig.id, tempBrandConfig);
+        } else {
+            // Create new (Check if one exists first just in case to avoid duplicates if reload was weird)
+            const existing = await api.brandSettings.getAll();
+            if (existing && existing.length > 0) {
+                await api.brandSettings.update(existing[0].id!, tempBrandConfig);
+                setBrandConfig(prev => ({...prev, id: existing[0].id}));
+            } else {
+                const newConfig = await api.brandSettings.create(tempBrandConfig);
+                setBrandConfig(newConfig);
+            }
+        }
+    } catch (error) {
+        console.error("Failed to save brand config:", error);
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Check file size (limit to ~1MB for DB storage safety)
+      if (file.size > 1024 * 1024) {
+          alert("A imagem é muito grande. Por favor, escolha uma imagem menor que 1MB.");
+          return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setTempBrandConfig(prev => ({ ...prev, logoUrl: reader.result as string }));
@@ -714,7 +726,11 @@ const App: React.FC = () => {
                     <p className="text-[10px] font-black text-[#6B8E23] uppercase tracking-widest mt-0.5 opacity-60">{brandConfig.slogan}</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-[#2D4739] flex items-center justify-center text-[#FDFBE2] shadow-xl overflow-hidden ring-2 ring-white/20">
-                    <User size={24} />
+                    {brandConfig.logoUrl ? (
+                      <img src={brandConfig.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={24} />
+                    )}
                   </div>
                 </div>
              </div>
@@ -796,7 +812,7 @@ const App: React.FC = () => {
                          </div>
                          <div className="flex-1 min-w-0">
                             <p className="text-xs font-black text-[#2D4739] uppercase tracking-wider">Escolher Arquivo</p>
-                            <p className="text-[9px] font-bold text-[#2D473966] truncate">JPG, PNG ou GIF (Max 2MB)</p>
+                            <p className="text-[9px] font-bold text-[#2D473966] truncate">JPG, PNG ou GIF (Max 1MB)</p>
                          </div>
                          <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                       </label>
