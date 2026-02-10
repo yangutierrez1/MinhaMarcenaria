@@ -15,7 +15,7 @@ import { Project, Material, Client, Budget, BibleVerse, ManualTask, ManualPenden
 import { STATUS_COLUMNS } from './constants';
 import { getDailyVerse } from './services/geminiService';
 import { api } from './services/api';
-import { Bell, User, Quote, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2 } from 'lucide-react';
+import { Bell, User, Quote, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
 
 interface BrandConfig {
   logoUrl: string;
@@ -25,20 +25,23 @@ interface BrandConfig {
 }
 
 const tabMeta: Record<string, { title: string; subtitle: string }> = {
-  dashboard: { title: 'Painel de Controle', subtitle: 'Visão geral da sua marcenaria' },
-  budgets: { title: 'Orçamentos', subtitle: 'Gestão de propostas comerciais' },
-  projects: { title: 'Projetos', subtitle: 'Acompanhamento de produção' },
-  tasks: { title: 'Tarefas', subtitle: 'Organização do dia a dia' },
-  pendencies: { title: 'Pendências', subtitle: 'Anotações rápidas da oficina' },
-  inventory: { title: 'Estoque', subtitle: 'Controle de materiais e insumos' },
-  finance: { title: 'Financeiro', subtitle: 'Saúde financeira e previsões' },
-  clients: { title: 'Clientes', subtitle: 'Base de contatos e histórico' },
-  agenda: { title: 'Agenda Inteligente', subtitle: 'Organização da rotina e compromissos' },
+  dashboard: { title: 'Painel de Controle', subtitle: 'Visão geral' },
+  budgets: { title: 'Orçamentos', subtitle: 'Propostas comerciais' },
+  projects: { title: 'Projetos', subtitle: 'Produção' },
+  tasks: { title: 'Tarefas', subtitle: 'Dia a dia' },
+  pendencies: { title: 'Pendências', subtitle: 'Anotações rápidas' },
+  inventory: { title: 'Estoque', subtitle: 'Controle de materiais' },
+  finance: { title: 'Financeiro', subtitle: 'Saúde financeira' },
+  clients: { title: 'Clientes', subtitle: 'Base de contatos' },
+  agenda: { title: 'Agenda', subtitle: 'Compromissos' },
 };
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Mobile Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Brand Configuration State (Local Storage for simplicity on this one)
   const [brandConfig, setBrandConfig] = useState<BrandConfig>({
@@ -98,7 +101,7 @@ const App: React.FC = () => {
 
       } catch (error) {
         console.error("Erro ao carregar dados do Supabase:", error);
-        alert("Erro ao conectar com o banco de dados.");
+        // alert("Erro ao conectar com o banco de dados."); // Opcional: remover para UX
       } finally {
         setIsLoading(false);
       }
@@ -194,7 +197,6 @@ const App: React.FC = () => {
     // 1. Revert Stock
     const projectToDelete = projects.find(p => p.id === id);
     if (projectToDelete && projectToDelete.materials && projectToDelete.materials.length > 0) {
-      // Nota: Idealmente faríamos isso em transação no backend, mas aqui faremos um por um
       const stockUpdates = materials.map(stockMat => {
         const usedMat = projectToDelete.materials.find(m => m.materialId === stockMat.id);
         if (usedMat) {
@@ -220,7 +222,6 @@ const App: React.FC = () => {
   const handleUpdateProject = async (id: string, updates: Partial<Project>) => {
     setProjects(prev => prev.map(p => {
       if (p.id === id) {
-        // Sync Agenda
         if (updates.deadline && updates.deadline !== p.deadline) {
            const relatedEvent = events.find(e => e.projectId === id && e.type === 'Entrega');
            if (relatedEvent) {
@@ -599,41 +600,65 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FDFBE2] flex wood-texture relative overflow-x-hidden">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} brand={brandConfig} onEditBrand={handleOpenBrandModal} />
-      <main className="flex-1 ml-64 px-10 pt-8 pb-32 min-h-screen min-w-0">
-        <header className="flex justify-between items-center mb-10 gap-8 w-full">
-          <div className="flex-shrink-0 max-w-[30%] min-w-0">
-            <h1 className="text-4xl font-black text-[#2D4739] tracking-tighter uppercase truncate leading-tight">{tabMeta[activeTab]?.title}</h1>
-            <p className="text-[#2D473988] font-bold text-sm mt-1 truncate">{tabMeta[activeTab]?.subtitle}</p>
-          </div>
-          <div className="flex-1 flex justify-center min-w-0">
-            <div className="w-full max-w-2xl bg-white/40 border border-[#2D473911] rounded-[2rem] p-5 shadow-sm">
-              {verse && (
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Quote size={12} className="text-[#6B8E23]" />
-                    <span className="text-[9px] font-black text-[#6B8E23] uppercase tracking-[0.2em]">Inspiração</span>
-                  </div>
-                  <p className="text-[#2D4739] font-black italic text-xs leading-snug mb-1 line-clamp-2">"{verse.text}"</p>
-                  <span className="text-[9px] font-black text-[#2D473988] uppercase tracking-wider">— {verse.reference}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex-shrink-0 flex items-center justify-end gap-6 min-w-fit">
-            <button className="relative p-3 text-[#2D4739] bg-white rounded-2xl shadow-md border border-[#2D473911] hover:scale-105 transition-all">
-              <Bell size={20} />
-              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-[#FDFBE2]"></span>
+      
+      {/* Sidebar Responsiva com Menu Gaveta */}
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        brand={brandConfig} 
+        onEditBrand={handleOpenBrandModal} 
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+      />
+      
+      <main className="flex-1 w-full lg:ml-64 px-6 md:px-10 pt-8 pb-32 min-h-screen min-w-0 transition-all duration-300">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 w-full">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            {/* Botão de Menu para Mobile */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-3 bg-white rounded-xl shadow-md border border-[#2D473911] text-[#2D4739] hover:bg-[#2D4739] hover:text-[#FDFBE2] transition-colors"
+            >
+              <Menu size={24} />
             </button>
-            <div className="flex items-center gap-4 group cursor-pointer" onClick={handleOpenBrandModal}>
-              <div className="text-right hidden xl:block">
-                <p className="text-sm font-black text-[#2D4739] transition-colors">{brandConfig.name}</p>
-                <p className="text-[10px] font-black text-[#6B8E23] uppercase tracking-widest mt-0.5 opacity-60">{brandConfig.slogan}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-[#2D4739] flex items-center justify-center text-[#FDFBE2] shadow-xl overflow-hidden ring-2 ring-white/20">
-                <User size={24} />
-              </div>
+            
+            <div className="flex-shrink-0 min-w-0">
+              <h1 className="text-3xl md:text-4xl font-black text-[#2D4739] tracking-tighter uppercase truncate leading-tight">{tabMeta[activeTab]?.title}</h1>
+              <p className="text-[#2D473988] font-bold text-xs md:text-sm mt-1 truncate">{tabMeta[activeTab]?.subtitle}</p>
             </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto md:flex-1 justify-end">
+             <div className="hidden md:flex justify-center flex-1 min-w-0 max-w-lg">
+                <div className="w-full bg-white/40 border border-[#2D473911] rounded-[2rem] p-5 shadow-sm">
+                  {verse && (
+                    <div className="relative">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Quote size={12} className="text-[#6B8E23]" />
+                        <span className="text-[9px] font-black text-[#6B8E23] uppercase tracking-[0.2em]">Inspiração</span>
+                      </div>
+                      <p className="text-[#2D4739] font-black italic text-xs leading-snug mb-1 line-clamp-2">"{verse.text}"</p>
+                      <span className="text-[9px] font-black text-[#2D473988] uppercase tracking-wider">— {verse.reference}</span>
+                    </div>
+                  )}
+                </div>
+             </div>
+
+             <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
+                <button className="relative p-3 text-[#2D4739] bg-white rounded-2xl shadow-md border border-[#2D473911] hover:scale-105 transition-all">
+                  <Bell size={20} />
+                  <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-[#FDFBE2]"></span>
+                </button>
+                <div className="flex items-center gap-4 group cursor-pointer" onClick={handleOpenBrandModal}>
+                  <div className="text-right hidden xl:block">
+                    <p className="text-sm font-black text-[#2D4739] transition-colors">{brandConfig.name}</p>
+                    <p className="text-[10px] font-black text-[#6B8E23] uppercase tracking-widest mt-0.5 opacity-60">{brandConfig.slogan}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-[#2D4739] flex items-center justify-center text-[#FDFBE2] shadow-xl overflow-hidden ring-2 ring-white/20">
+                    <User size={24} />
+                  </div>
+                </div>
+             </div>
           </div>
         </header>
         <section className="animate-fade-in w-full">{renderContent()}</section>

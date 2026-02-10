@@ -2,7 +2,11 @@
 <html lang="pt-br" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1A2E24">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
     <title>My Home Marcenaria - Gestão Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -16,6 +20,7 @@
         
         html {
             scroll-behavior: smooth;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body { 
@@ -25,6 +30,7 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overscroll-behavior-y: none; /* Previne efeito de elástico no topo/fundo em mobile */
         }
         
         input[type="date"]::-webkit-calendar-picker-indicator {
@@ -48,6 +54,7 @@
         
         .custom-scrollbar::-webkit-scrollbar {
             width: 8px;
+            height: 8px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
             background: rgba(45, 71, 57, 0.05);
