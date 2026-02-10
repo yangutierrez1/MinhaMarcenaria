@@ -396,7 +396,7 @@ const Finance: React.FC<FinanceProps> = ({
   );
 
   const renderHistory = () => {
-    const transactions = [];
+    const transactions: any[] = [];
 
     filteredData.projects.forEach(p => {
       if (p.isPaid) {
