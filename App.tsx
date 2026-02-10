@@ -41,23 +41,39 @@ const resizeImage = (file: File): Promise<string> => {
       img.src = event.target?.result as string;
       img.onload = () => {
         const elem = document.createElement('canvas');
-        const MAX_WIDTH = 400; // Limita largura a 400px
-        const scaleFactor = MAX_WIDTH / img.width;
+        const MAX_WIDTH = 300; 
+        const MAX_HEIGHT = 300;
         
-        // Se a imagem for menor, usa o tamanho original
-        if (scaleFactor >= 1) {
-             resolve(event.target?.result as string);
-             return;
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
         }
 
-        elem.width = MAX_WIDTH;
-        elem.height = img.height * scaleFactor;
+        elem.width = width;
+        elem.height = height;
         
         const ctx = elem.getContext('2d');
-        ctx?.drawImage(img, 0, 0, elem.width, elem.height);
-        
-        // Exporta como JPEG com qualidade 0.8 para reduzir tamanho
-        resolve(elem.toDataURL('image/jpeg', 0.8));
+        if (ctx) {
+           // White background for transparent PNGs converted to JPEG
+           ctx.fillStyle = '#FFFFFF';
+           ctx.fillRect(0, 0, width, height);
+           ctx.drawImage(img, 0, 0, width, height);
+           // Force JPEG 0.7 quality regardless of original size
+           resolve(elem.toDataURL('image/jpeg', 0.7)); 
+        } else {
+           reject(new Error("Canvas context failed"));
+        }
       };
       img.onerror = (error) => reject(error);
     };
