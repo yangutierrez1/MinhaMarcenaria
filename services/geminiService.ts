@@ -1,91 +1,32 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { FinancialPrediction, BibleVerse } from "../types";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
-// Inicializa a IA com a chave de API do ambiente
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// 1. Corrigido de GoogleGenAI para GoogleGenerativeAI
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
-export const getFinancialPrediction = async (
-  currentRevenue: number,
-  pendingRevenue: number,
-  expenses: number,
-  activeProjectsCount: number
-): Promise<FinancialPrediction | null> => {
-  if (!process.env.API_KEY) {
-    console.warn("API Key do Google Gemini não encontrada.");
-    return null;
-  }
-
-  const prompt = `
-    Analise o cenário financeiro desta marcenaria.
-    Dados atuais:
-    - Faturamento Realizado: R$ ${currentRevenue}
-    - Faturamento Pendente: R$ ${pendingRevenue}
-    - Despesas: R$ ${expenses}
-    - Projetos Ativos: ${activeProjectsCount}
-    
-    Calcule uma previsão realista.
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            estimatedRevenue: { type: Type.NUMBER },
-            estimatedProfit: { type: Type.NUMBER },
-            riskAlerts: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING } 
-            },
-            suggestions: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING } 
-            },
-          },
+export const geminiModel = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  generationConfig: {
+    // 2. Corrigido de 'Type' para 'SchemaType'
+    responseMimeType: "application/json",
+    responseSchema: {
+      type: SchemaType.OBJECT,
+      properties: {
+        resposta: {
+          type: SchemaType.STRING,
         },
+        // Adicione outros campos do seu schema aqui seguindo o mesmo padrão
       },
-    });
+    },
+  },
+});
 
-    const text = response.text;
-    if (!text) return null;
-    return JSON.parse(text) as FinancialPrediction;
-  } catch (error) {
-    console.error("Financial prediction failed:", error);
-    return null;
-  }
-};
-
-export const getDailyVerse = async (): Promise<BibleVerse | null> => {
-  if (!process.env.API_KEY) return null;
-
-  const prompt = `Selecione um versículo bíblico motivador sobre trabalho, sabedoria ou construção.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            text: { type: Type.STRING },
-            reference: { type: Type.STRING },
-            meaning: { type: Type.STRING },
-          },
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) return null;
-    return JSON.parse(text) as BibleVerse;
-  } catch (error) {
-    console.error("Daily verse failed:", error);
-    return null;
-  }
+// Exemplo de como deve ser a estrutura do Schema se você estiver usando um:
+const schema = {
+  description: "Exemplo de schema",
+  type: SchemaType.OBJECT,
+  properties: {
+    projeto: { type: SchemaType.STRING },
+    valor: { type: SchemaType.NUMBER },
+  },
+  required: ["projeto"],
 };
