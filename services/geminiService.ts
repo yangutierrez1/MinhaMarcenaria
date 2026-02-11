@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { FinancialPrediction, BibleVerse } from "../types";
 
 // Inicializa a IA com a chave de API do ambiente
