@@ -11,7 +11,8 @@ import {
   DollarSign,
   CalendarDays,
   X,
-  LogOut
+  LogOut,
+  ClipboardList
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -150,7 +151,5 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, brand, onEdi
     </>
   );
 };
-
-import { ClipboardList } from 'lucide-react'; 
 
 export default Sidebar;

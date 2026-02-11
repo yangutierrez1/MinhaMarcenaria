@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FinancialPrediction, BibleVerse } from "../types";
 
-// Inicializa a IA com a chave de API do ambiente (Padrão estrito)
+// Inicializa a IA com a chave de API do ambiente
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getFinancialPrediction = async (
