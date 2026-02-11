@@ -1,9 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FinancialPrediction, BibleVerse } from "../types";
 
-// Inicializa a IA com a chave de API do ambiente
-const apiKey = import.meta.env?.VITE_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Inicializa a IA com a chave de API do ambiente (Padrão estrito)
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getFinancialPrediction = async (
   currentRevenue: number,
@@ -11,7 +10,7 @@ export const getFinancialPrediction = async (
   expenses: number,
   activeProjectsCount: number
 ): Promise<FinancialPrediction | null> => {
-  if (!ai) {
+  if (!process.env.API_KEY) {
     console.warn("API Key do Google Gemini não encontrada.");
     return null;
   }
@@ -61,7 +60,7 @@ export const getFinancialPrediction = async (
 };
 
 export const getDailyVerse = async (): Promise<BibleVerse | null> => {
-  if (!ai) return null;
+  if (!process.env.API_KEY) return null;
 
   const prompt = `Selecione um versículo bíblico motivador sobre trabalho, sabedoria ou construção.`;
 
