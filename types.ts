@@ -124,19 +124,6 @@ export interface ManualRevenue {
   paymentMethod: string;
 }
 
-export interface FinancialPrediction {
-  estimatedRevenue: number;
-  estimatedProfit: number;
-  riskAlerts: string[];
-  suggestions: string[];
-}
-
-export interface BibleVerse {
-  text: string;
-  reference: string;
-  meaning: string;
-}
-
 export interface ManualTask {
   id: string;
   title: string;

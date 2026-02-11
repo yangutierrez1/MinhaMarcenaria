@@ -13,11 +13,10 @@ import Agenda from './components/Agenda';
 import Auth from './components/Auth';
 import Modal from './components/ui/Modal';
 import Button from './components/ui/Button';
-import { Project, Material, Client, Budget, BibleVerse, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, TaskStatus, AgendaEvent, BrandConfig } from './types';
-import { STATUS_COLUMNS, INITIAL_MATERIALS, INITIAL_CLIENTS, INITIAL_PROJECTS } from './constants';
-import { getDailyVerse } from './services/geminiService';
+import { Project, Material, Client, Budget, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, AgendaEvent, BrandConfig, TaskStatus } from './types';
+import { STATUS_COLUMNS } from './constants';
 import { api } from './services/api';
-import { Bell, User, Quote, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
+import { Bell, User, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
 
 const tabMeta: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Painel de Controle', subtitle: 'Visão geral' },
@@ -105,8 +104,6 @@ const App: React.FC = () => {
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [tempBrandConfig, setTempBrandConfig] = useState<BrandConfig>(brandConfig);
 
-  const [verse, setVerse] = useState<BibleVerse | null>(null);
-  
   // Dados Principais
   const [projects, setProjects] = useState<Project[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -171,10 +168,6 @@ const App: React.FC = () => {
                 userName: session?.user?.email?.split('@')[0] || 'Visitante'
              });
         }
-
-        // Load Verse
-        const dailyVerse = await getDailyVerse();
-        if (dailyVerse) setVerse(dailyVerse);
         
       } catch (error) {
         console.error("Erro ao carregar dados do Supabase:", error);
@@ -768,21 +761,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto md:flex-1 justify-end">
-             <div className="hidden md:flex justify-center flex-1 min-w-0 max-w-lg">
-                <div className="w-full bg-white/40 border border-[#2D473911] rounded-[2rem] p-5 shadow-sm">
-                  {verse && (
-                    <div className="relative">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Quote size={12} className="text-[#6B8E23]" />
-                        <span className="text-[9px] font-black text-[#6B8E23] uppercase tracking-[0.2em]">Inspiração</span>
-                      </div>
-                      <p className="text-[#2D4739] font-black italic text-xs leading-snug mb-1 line-clamp-2">"{verse.text}"</p>
-                      <span className="text-[9px] font-black text-[#2D473988] uppercase tracking-wider">— {verse.reference}</span>
-                    </div>
-                  )}
-                </div>
-             </div>
-
              <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
                 <button className="relative p-3 text-[#2D4739] bg-white rounded-2xl shadow-md border border-[#2D473911] hover:scale-105 transition-all">
                   <Bell size={20} />
