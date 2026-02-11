@@ -120,7 +120,7 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
   };
 
   const handleSaveInternal = () => {
-    if (!selectedClient || !projectTitle) return alert("Preencha o cliente e o título.");
+    if (!selectedClient || !projectTitle.trim()) return alert("Preencha o cliente e o título.");
     const payload = {
       id: editingBudgetId,
       clientId: selectedClient,
@@ -141,7 +141,11 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
   };
 
   const handleApproveInternal = () => {
-    if (!selectedClient || !projectTitle) return alert("Preencha os campos obrigatórios.");
+    if (!selectedClient || !projectTitle.trim()) {
+       alert("Por favor, preencha o Título do Projeto e selecione um Cliente antes de aprovar.");
+       return;
+    }
+    
     const payload = {
       id: editingBudgetId,
       clientId: selectedClient,
@@ -380,12 +384,14 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
 
             <div className="space-y-4 pt-4 relative">
               <button 
+                type="button"
                 onClick={handleApproveInternal} 
-                className="w-full py-7 bg-[#6B8E23] text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-xs shadow-2xl hover:bg-[#5a7a1c] transition-all flex items-center justify-center gap-3 active:scale-95 group"
+                className="w-full py-7 bg-[#6B8E23] text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-xs shadow-2xl hover:bg-[#5a7a1c] transition-all flex items-center justify-center gap-3 active:scale-95 group border-2 border-transparent hover:border-white/20"
               >
                 <CheckCircle2 size={24} className="group-hover:scale-125 transition-transform" /> Aprovar e Iniciar Projeto
               </button>
               <button 
+                type="button"
                 onClick={handleSaveInternal} 
                 className="w-full py-7 bg-white/5 text-white rounded-[2rem] font-black uppercase tracking-[0.3em] text-xs hover:bg-white/10 transition-all flex items-center justify-center gap-3 border border-white/10 active:scale-95"
               >
@@ -393,6 +399,7 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
               </button>
               {editingBudgetId && (
                  <button 
+                    type="button"
                     onClick={() => handleDeleteBudget(editingBudgetId, projectTitle)}
                     className="w-full py-4 text-red-400 font-black uppercase tracking-[0.3em] text-[10px] hover:text-red-300 transition-all flex items-center justify-center gap-2 opacity-60 hover:opacity-100"
                  >

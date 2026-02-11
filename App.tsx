@@ -31,47 +31,47 @@ const tabMeta: Record<string, { title: string; subtitle: string }> = {
   agenda: { title: 'Agenda', subtitle: 'Compromissos' },
 };
 
-// --- HELPER DE COMPRESSÃO DE IMAGEM OTIMIZADO ---
+// --- HELPER DE COMPRESSÃO DE IMAGEM OTIMIZADO (WebP + 400px) ---
 const resizeImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
+    
     reader.onload = (event) => {
       const img = new Image();
       img.src = event.target?.result as string;
+      
       img.onload = () => {
-        const elem = document.createElement('canvas');
-        // Reduzido para 150px para garantir extrema leveza e compatibilidade com storage
-        const MAX_SIZE = 150; 
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400; // Tamanho ideal para logos
+        const MAX_HEIGHT = 400;
         
         let width = img.width;
         let height = img.height;
 
-        // Lógica de redimensionamento mantendo proporção
+        // Cálculo das novas dimensões mantendo o aspect ratio
         if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
           }
         } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
           }
         }
 
-        elem.width = width;
-        elem.height = height;
+        canvas.width = width;
+        canvas.height = height;
         
-        const ctx = elem.getContext('2d');
+        const ctx = canvas.getContext('2d');
         if (ctx) {
-           // Fundo branco para imagens transparentes (PNG) virarem JPEG corretamente
-           ctx.fillStyle = '#FFFFFF';
-           ctx.fillRect(0, 0, width, height);
            ctx.drawImage(img, 0, 0, width, height);
            
-           // Qualidade 0.7 oferece bom compromisso entre tamanho e visual para logos pequenas
-           resolve(elem.toDataURL('image/jpeg', 0.7)); 
+           // Converte para WebP (mais leve) com 80% de qualidade
+           // Mantém como DataURL (Base64) para compatibilidade com o banco atual
+           resolve(canvas.toDataURL('image/webp', 0.8)); 
         } else {
            reject(new Error("Falha ao processar contexto da imagem"));
         }
@@ -230,12 +230,12 @@ const App: React.FC = () => {
     if (file) {
       setIsProcessingImage(true);
       try {
-        // Usa o helper otimizado para redimensionar
+        // Usa o helper otimizado para redimensionar (WebP, 400px)
         const resizedBase64 = await resizeImage(file);
         setTempBrandConfig(prev => ({ ...prev, logoUrl: resizedBase64 }));
       } catch (error) {
         console.error("Error processing image", error);
-        alert("Erro ao processar a imagem. Tente outro arquivo JPG ou PNG.");
+        alert("Erro ao processar a imagem. Tente outro arquivo.");
       } finally {
         setIsProcessingImage(false);
       }
@@ -601,54 +601,60 @@ const App: React.FC = () => {
 
   // --- BUDGETS / APPROVAL HANDLERS ---
   const handleApproveBudget = async (budgetData: any) => {
-    const newProject: Project = {
-      id: Math.random().toString(36).substr(2, 9),
-      clientId: budgetData.clientId,
-      name: budgetData.title,
-      description: budgetData.environments?.map((e: any) => e.type).join(', ') || 'Projeto Personalizado',
-      status: 'Preparação',
-      priority: 'Média',
-      deadline: budgetData.deadline,
-      materials: budgetData.materials,
-      subtasks: budgetData.subtasks || [],
-      value: budgetData.finalPrice,
-      isPaid: false,
-      isAdvancePaid: false,
-      advanceValue: 0
-    };
-
-    setProjects(prev => [...prev, newProject]);
-    await api.projects.create(newProject);
-    syncProjectToAgenda(newProject);
-
-    if (budgetData.materials && budgetData.materials.length > 0) {
-      const matUpdates = materials.map(stockMat => {
-        const itemToDeduct = budgetData.materials.find((m: any) => m.materialId === stockMat.id);
-        if (itemToDeduct) {
-          const newQty = Math.max(0, stockMat.quantity - itemToDeduct.quantity);
-          api.materials.update(stockMat.id, { quantity: newQty }); // Fire & Forget
-          return { ...stockMat, quantity: newQty };
-        }
-        return stockMat;
-      });
-      setMaterials(matUpdates);
-    }
-
-    if (budgetData.id) {
-      setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, status: 'Aprovado' } : b));
-      await api.budgets.update(budgetData.id, { status: 'Aprovado' });
-    } else {
-      const newBudget: Budget = {
-        ...budgetData,
+    try {
+      const newProject: Project = {
         id: Math.random().toString(36).substr(2, 9),
-        status: 'Aprovado',
-        createdAt: new Date().toISOString(),
-        travelCost: 0
+        clientId: budgetData.clientId,
+        name: budgetData.title,
+        // Proteção contra 'environments' indefinido para evitar erro no .map().join()
+        description: (budgetData.environments || []).map((e: any) => e.type).join(', ') || 'Projeto Personalizado',
+        status: 'Preparação',
+        priority: 'Média',
+        deadline: budgetData.deadline,
+        materials: budgetData.materials || [],
+        subtasks: budgetData.subtasks || [],
+        value: budgetData.finalPrice,
+        isPaid: false,
+        isAdvancePaid: false,
+        advanceValue: 0
       };
-      setBudgets(prev => [...prev, newBudget]);
-      await api.budgets.create(newBudget);
+
+      setProjects(prev => [...prev, newProject]);
+      await api.projects.create(newProject);
+      syncProjectToAgenda(newProject);
+
+      if (budgetData.materials && budgetData.materials.length > 0) {
+        const matUpdates = materials.map(stockMat => {
+          const itemToDeduct = budgetData.materials.find((m: any) => m.materialId === stockMat.id);
+          if (itemToDeduct) {
+            const newQty = Math.max(0, stockMat.quantity - itemToDeduct.quantity);
+            api.materials.update(stockMat.id, { quantity: newQty }); // Fire & Forget
+            return { ...stockMat, quantity: newQty };
+          }
+          return stockMat;
+        });
+        setMaterials(matUpdates);
+      }
+
+      if (budgetData.id) {
+        setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, status: 'Aprovado' } : b));
+        await api.budgets.update(budgetData.id, { status: 'Aprovado' });
+      } else {
+        const newBudget: Budget = {
+          ...budgetData,
+          id: Math.random().toString(36).substr(2, 9),
+          status: 'Aprovado',
+          createdAt: new Date().toISOString(),
+          travelCost: 0
+        };
+        setBudgets(prev => [...prev, newBudget]);
+        await api.budgets.create(newBudget);
+      }
+      setActiveTab('projects');
+    } catch (error) {
+      console.error("Falha ao aprovar orçamento:", error);
+      alert("Ocorreu um erro ao aprovar o projeto. Verifique os dados e tente novamente.");
     }
-    setActiveTab('projects');
   };
 
   const handleSaveBudget = async (budgetData: any) => {

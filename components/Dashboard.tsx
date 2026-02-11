@@ -1,28 +1,20 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { 
-  Briefcase, 
-  ChevronLeft,
-  ChevronRight,
-  Trello,
+  TrendingUp, 
+  Wallet, 
+  Hammer, 
+  Package, 
+  Users, 
   Calculator,
-  CheckCircle2,
-  CalendarDays,
-  X,
-  Info,
-  AlertCircle,
-  ClipboardList,
-  PlayCircle,
-  TrendingUp,
+  Activity,
   Clock,
+  Truck,
   ArrowRight,
-  Circle,
-  DollarSign,
-  PlusCircle,
-  Zap,
-  Hammer
+  TrendingDown,
+  Briefcase
 } from 'lucide-react';
 import { Project, Material, Budget, ManualPendency, ManualTask } from '../types';
+import { formatBRL } from '../utils/format';
 
 interface DashboardProps {
   projects: Project[];
@@ -38,276 +30,279 @@ const Dashboard: React.FC<DashboardProps> = ({
   projects, 
   materials, 
   budgets = [], 
-  manualTasks = [],
-  manualPendencies = [],
   userName = 'Mestre', 
   onNavigate 
 }) => {
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  
+  // --- CÁLCULOS ---
+  const kpis = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
 
-  const stats = useMemo(() => {
+    // 1. Financeiro
     const activeProjects = projects.filter(p => !p.isPaid);
-    const waitingBudgets = budgets.filter(b => b.status === 'Pendente');
-    const delayed = activeProjects.filter(p => new Date(p.deadline) < new Date());
-    const totalPotentialValue = activeProjects.reduce((sum, p) => sum + p.value, 0);
+    const completedProjects = projects.filter(p => p.isPaid);
     
-    return {
-      budgetsCount: waitingBudgets.length,
-      productionCount: projects.filter(p => p.status !== 'Entrega' && !p.isPaid).length,
-      delayedCount: delayed.length,
-      pendenciesCount: manualPendencies.filter(p => !p.completed).length,
-      potentialRevenue: totalPotentialValue
+    // Receita Já Realizada no Mês (Projetos Pagos + Adiantamentos)
+    const realizedRevenue = projects.reduce((acc, p) => {
+      // Simplificação: Considera valor total se pago, ou adiantamento se houver
+      if (p.isPaid) {
+          const d = new Date(p.deadline); // Usando data de entrega como base para o caixa
+          if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) return acc + p.value;
+      } else if (p.isAdvancePaid && p.advanceValue) {
+          // Adiantamentos contam como entrada (sem data específica no modelo, assumindo corrente)
+          return acc + p.advanceValue;
+      }
+      return acc;
+    }, 0);
+
+    // Receita Potencial (O que falta receber dos projetos ativos)
+    const potentialRevenue = activeProjects.reduce((acc, p) => {
+       const paidPart = p.isAdvancePaid ? (p.advanceValue || 0) : 0;
+       return acc + (p.value - paidPart);
+    }, 0);
+
+    // 2. Estoque
+    const stockValue = materials.reduce((acc, m) => acc + (m.price * m.quantity), 0);
+
+    // 3. Pipeline
+    const pipeline = {
+      prep: activeProjects.filter(p => p.status === 'Preparação').length,
+      cut: activeProjects.filter(p => p.status === 'Corte').length,
+      assembly: activeProjects.filter(p => p.status === 'Montagem').length,
+      delivery: activeProjects.filter(p => p.status === 'Entrega').length,
     };
-  }, [projects, budgets, manualPendencies]);
 
-  const combinedTasks = useMemo(() => {
-    const pSubtasks = projects
-      .filter(p => !p.isPaid)
-      .flatMap(p => 
-        p.subtasks
-          .filter(s => !s.completed && s.phase === p.status)
-          .map(s => ({ id: `p-${p.id}-${s.title}`, title: s.title, subtitle: p.name, type: 'project' as const }))
-      );
+    // 4. Funil de Vendas (Orçamentos)
+    const pendingBudgetsCount = budgets.filter(b => b.status === 'Pendente').length;
+    const pendingBudgetsValue = budgets.filter(b => b.status === 'Pendente').reduce((acc, b) => acc + b.finalPrice, 0);
 
-    const mTasks = manualTasks
-      .filter(t => !t.completed)
-      .map(t => ({ id: t.id, title: t.title, subtitle: 'Rotina Oficina', type: 'manual' as const }));
+    // 5. Atividades Recentes
+    const activities = [
+        ...projects.slice(-2).map(p => ({ 
+            id: p.id, type: 'project', text: `Iniciado: ${p.name}`, date: 'Produção', icon: <Hammer size={14}/>, color: 'text-blue-600 bg-blue-100' 
+        })),
+        ...budgets.slice(-2).map(b => ({ 
+            id: b.id, type: 'budget', text: `Orçamento: ${b.title}`, date: 'Comercial', icon: <Calculator size={14}/>, color: 'text-amber-600 bg-amber-100' 
+        })),
+        ...completedProjects.slice(-1).map(p => ({ 
+            id: p.id, type: 'money', text: `Entregue: ${p.name}`, date: 'Finalizado', icon: <TrendingUp size={14}/>, color: 'text-green-600 bg-green-100' 
+        }))
+    ].slice(0, 4);
 
-    return [...mTasks, ...pSubtasks].slice(0, 10);
-  }, [projects, manualTasks]);
+    return {
+      realizedRevenue,
+      potentialRevenue,
+      projectedTotal: realizedRevenue + potentialRevenue,
+      activeCount: activeProjects.length,
+      stockValue,
+      pendingBudgetsCount,
+      pendingBudgetsValue,
+      pipeline,
+      activities
+    };
+  }, [projects, materials, budgets]);
 
   return (
-    <div className="space-y-12 animate-fade-in pb-20">
+    <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        <StatCard 
-          icon={<Calculator size={28} />} 
-          label="Orçamentos Abertos" 
-          value={stats.budgetsCount.toString()} 
-          subText="Novas oportunidades" 
-          accentColor="#6B8E23"
-          onClick={() => onNavigate('budgets')}
-        />
-        <StatCard 
-          icon={<Hammer size={28} />} 
-          label="Em Produção" 
-          value={stats.productionCount.toString()} 
-          subText="Projetos na oficina" 
-          accentColor="#2D4739"
-          onClick={() => onNavigate('projects')}
-        />
-        <StatCard 
-          icon={<AlertCircle size={28} />} 
-          label="Atrasos / Alertas" 
-          value={stats.delayedCount.toString()} 
-          subText="Verifique os prazos" 
-          accentColor="#dc2626"
-          onClick={() => onNavigate('projects')}
-        />
-        <StatCard 
-          icon={<DollarSign size={28} />} 
-          label="Capital em Produção" 
-          value={`R$ ${(stats.potentialRevenue / 1000).toFixed(1)}k`} 
-          subText="Valor total de ativos" 
-          accentColor="#6B8E23"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <section className="bg-white rounded-[3.5rem] p-10 shadow-2xl border border-[#2D473911] space-y-8 flex flex-col min-h-[500px]">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-black uppercase tracking-[0.4em] text-[#2D473966] flex items-center gap-3">
-              <Zap size={16} className="text-[#6B8E23]" /> Ações Rápidas
-            </h3>
-          </div>
-          <div className="grid gap-4">
-             <QuickActionButton icon={<PlusCircle size={24} />} label="Novo Orçamento" color="#6B8E23" onClick={() => onNavigate('budgets')} />
-             <QuickActionButton icon={<Trello size={24} />} label="Painel de Tarefas" color="#2D4739" onClick={() => onNavigate('tasks')} />
-             <QuickActionButton icon={<ClipboardList size={24} />} label="Anotação Rápida" color="#2D4739" onClick={() => onNavigate('pendencies')} />
-          </div>
-          <div className="pt-10 border-t border-[#2D473908] flex-1">
-             <h4 className="text-[10px] font-black uppercase tracking-widest text-[#2D473944] mb-6">Lembretes Urgentes</h4>
-             <div className="space-y-4">
-                {manualPendencies.filter(p => !p.completed).slice(0, 3).map(p => (
-                  <div key={p.id} className="flex items-center gap-4 bg-[#FDFBE2] p-4 rounded-2xl border border-[#2D473908]">
-                    <Circle size={12} className="text-[#6B8E23]" />
-                    <span className="text-xs font-bold text-[#2D4739AA] truncate">{p.text}</span>
-                  </div>
-                ))}
-                {manualPendencies.filter(p => !p.completed).length === 0 && (
-                   <p className="text-center text-[10px] font-black uppercase tracking-widest text-[#2D473922] py-4">Nenhuma pendência rápida</p>
-                )}
-             </div>
-          </div>
-        </section>
-
-        <section className="lg:col-span-2 bg-white rounded-[3.5rem] p-10 shadow-2xl border border-[#2D473911] space-y-10 flex flex-col min-h-[500px]">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-black uppercase tracking-[0.4em] text-[#2D473966] flex items-center gap-3">
-              <Trello size={16} className="text-[#6B8E23]" /> O Que Fazer Hoje?
-            </h3>
-            <button onClick={() => onNavigate('tasks')} className="text-[10px] font-black uppercase tracking-widest text-[#6B8E23] flex items-center gap-2 hover:underline">Ver todas <ArrowRight size={14} /></button>
-          </div>
-          
-          <div className="overflow-y-auto custom-scrollbar flex-1 pr-4 space-y-4 max-h-[600px]">
-            {combinedTasks.length > 0 ? combinedTasks.map(t => (
-              <div key={t.id} className="group flex items-center gap-6 p-6 rounded-[2.5rem] bg-[#FDFBE2]/30 border border-[#2D473908] hover:border-[#6B8E23] transition-all cursor-pointer">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#2D473922] group-hover:text-[#6B8E23] transition-all border border-[#2D473911] shadow-sm">
-                  {t.type === 'project' ? <Hammer size={24} /> : <Zap size={24} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-[#2D4739] text-base truncate">{t.title}</p>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#2D473944] mt-1">{t.subtitle}</p>
-                </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowRight size={20} className="text-[#6B8E23]" />
-                </div>
-              </div>
-            )) : (
-              <div className="h-full flex flex-col items-center justify-center text-center opacity-20 py-20">
-                <CheckCircle2 size={80} className="text-[#6B8E23] mb-6" />
-                <p className="text-xl font-black uppercase tracking-[0.4em]">Tudo Finalizado!</p>
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
-
-      <div className="bg-[#2D4739] rounded-[4rem] p-14 shadow-2xl border border-white/5 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#6B8E23] opacity-10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8 relative z-10">
-          <div className="space-y-4">
-             <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">Cronograma de Entregas</h3>
-             <h4 className="text-5xl font-black text-[#FDFBE2] tracking-tighter uppercase">Visão Estratégica</h4>
-          </div>
-          <div className="flex gap-4">
-            <button className="px-10 py-4 bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">Fevereiro</button>
-            <button className="px-10 py-4 bg-[#6B8E23] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Hoje</button>
-          </div>
+      {/* HEADER */}
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-black text-[#2D4739] tracking-tighter uppercase leading-none">
+            Visão Geral
+          </h2>
+          <p className="text-sm font-black text-[#2D473966] uppercase tracking-[0.2em] mt-2">
+            Bem-vindo, {userName}
+          </p>
         </div>
-        <Calendar projects={projects} onProjectClick={setSelectedProject} />
+        <div className="hidden md:flex items-center gap-2 bg-white px-5 py-3 rounded-2xl shadow-sm border border-[#2D473908]">
+            <Hammer size={16} className="text-[#6B8E23]" />
+            <span className="text-xs font-black uppercase tracking-widest text-[#2D473988]">
+                {kpis.activeCount} Projetos em Andamento
+            </span>
+        </div>
       </div>
 
-      {selectedProject && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-[#1A2E24]/90 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-[#FDFBE2] w-full max-w-2xl rounded-[3.5rem] shadow-2xl border border-white/20 animate-in zoom-in-95 flex flex-col max-h-[90vh]">
-            <div className="p-10 border-b border-[#2D473911] flex justify-between items-center bg-white/50 flex-shrink-0">
-               <div className="flex items-center gap-6">
-                  <div className="p-5 bg-[#2D4739] text-[#FDFBE2] rounded-[2rem] shadow-2xl"><Hammer size={32} /></div>
-                  <div>
-                    <h3 className="text-3xl font-black text-[#2D4739] leading-none tracking-tighter uppercase">{selectedProject.name}</h3>
-                    <p className="text-xs font-black text-[#6B8E23] uppercase tracking-widest mt-2">{selectedProject.status}</p>
+      {/* BLOCO 1: FINANCEIRO E ESTOQUE (LAYOUT ASSIMÉTRICO) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Card Principal: Realizado vs Potencial */}
+        <div className="lg:col-span-2 bg-[#2D4739] p-8 rounded-[3rem] shadow-2xl text-[#FDFBE2] relative overflow-hidden flex flex-col justify-between min-h-[280px] border border-white/5">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-[#6B8E23] rounded-full blur-[80px] opacity-20 -mr-20 -mt-20"></div>
+            
+            <div className="relative z-10 flex justify-between items-start">
+               <div>
+                  <div className="flex items-center gap-3 mb-2 opacity-80">
+                    <Wallet size={18} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em]">Fluxo de Caixa</span>
+                  </div>
+                  <h3 className="text-4xl md:text-5xl font-black tracking-tighter text-white">
+                    R$ {formatBRL(kpis.realizedRevenue)}
+                  </h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-1">Entradas Confirmadas (Mês Atual)</p>
+               </div>
+               <button onClick={() => onNavigate('finance')} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all">
+                  <ArrowRight size={20} />
+               </button>
+            </div>
+
+            <div className="relative z-10 grid grid-cols-2 gap-8 pt-8 border-t border-white/10 mt-8">
+                <div onClick={() => onNavigate('projects')} className="cursor-pointer group">
+                   <p className="text-[9px] font-black uppercase tracking-widest text-[#6B8E23] mb-1">À Receber (Projetos)</p>
+                   <p className="text-2xl font-bold group-hover:text-[#6B8E23] transition-colors">R$ {formatBRL(kpis.potentialRevenue)}</p>
+                </div>
+                <div className="opacity-50">
+                   <p className="text-[9px] font-black uppercase tracking-widest mb-1">Total Previsto</p>
+                   <p className="text-2xl font-bold">R$ {formatBRL(kpis.projectedTotal)}</p>
+                </div>
+            </div>
+        </div>
+
+        {/* Coluna Lateral: Estoque e Orçamentos */}
+        <div className="flex flex-col gap-6">
+            
+            {/* Card Estoque */}
+            <div onClick={() => onNavigate('inventory')} className="bg-white p-6 rounded-[2.5rem] shadow-lg border border-[#2D473911] flex-1 flex flex-col justify-center cursor-pointer group hover:border-[#6B8E23] transition-all">
+               <div className="flex justify-between items-center mb-2">
+                  <Package size={24} className="text-[#2D4739] opacity-20 group-hover:text-[#6B8E23] group-hover:opacity-100 transition-all" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-[#2D473944]">Patrimônio</span>
+               </div>
+               <p className="text-2xl font-black text-[#2D4739]">R$ {formatBRL(kpis.stockValue)}</p>
+               <p className="text-[9px] font-bold text-[#2D473966] uppercase tracking-wide">Em materiais</p>
+            </div>
+
+            {/* Card Funil de Vendas */}
+            <div onClick={() => onNavigate('budgets')} className="bg-[#FDFBE2] p-6 rounded-[2.5rem] shadow-lg border border-[#2D473908] flex-1 flex flex-col justify-center cursor-pointer group hover:bg-[#FDFBE2]/80 transition-all">
+               <div className="flex justify-between items-center mb-2">
+                  <Briefcase size={24} className="text-[#6B8E23]" />
+                  <div className="bg-white px-3 py-1 rounded-full text-[9px] font-black text-[#2D4739] shadow-sm">
+                     {kpis.pendingBudgetsCount} Pendentes
                   </div>
                </div>
-               <button onClick={() => setSelectedProject(null)} className="p-4 hover:bg-[#2D473911] rounded-2xl transition-all"><X size={32} /></button>
+               <p className="text-2xl font-black text-[#2D4739]">R$ {formatBRL(kpis.pendingBudgetsValue)}</p>
+               <p className="text-[9px] font-bold text-[#6B8E23] uppercase tracking-wide">Em negociação</p>
             </div>
-            
-            <div className="p-12 space-y-10 overflow-y-auto custom-scrollbar flex-1">
-              <div className="grid grid-cols-2 gap-8">
-                <div className="p-8 bg-white/80 rounded-[2.5rem] border border-[#2D473911] shadow-sm">
-                  <p className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest mb-3">Entrega Prometida</p>
-                  <p className="text-3xl font-black text-[#2D4739] tracking-tighter">{new Date(selectedProject.deadline).toLocaleDateString('pt-BR')}</p>
-                </div>
-                <div className="p-8 bg-white/80 rounded-[2.5rem] border border-[#2D473911] shadow-sm">
-                  <p className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest mb-3">Valor do Projeto</p>
-                  <p className="text-3xl font-black text-[#6B8E23] tracking-tighter">R$ {selectedProject.value.toLocaleString('pt-BR')}</p>
-                </div>
-              </div>
-              <div className="space-y-6">
-                 <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-[#2D473944] border-b border-[#2D473911] pb-4">Progresso Checklist</h4>
-                 <div className="grid gap-4">
-                    {selectedProject.subtasks.slice(0, 5).map((s, i) => (
-                      <div key={i} className={`flex items-center gap-4 p-5 rounded-2xl border ${s.completed ? 'bg-[#2D473908] border-transparent opacity-50' : 'bg-white border-[#2D473908]'}`}>
-                        <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center ${s.completed ? 'bg-[#6B8E23] border-[#6B8E23]' : 'border-[#2D473911]'}`}>{s.completed && <CheckCircle2 size={14} className="text-white" />}</div>
-                        <span className={`text-sm font-bold ${s.completed ? 'line-through text-[#2D473944]' : 'text-[#2D4739]'}`}>{s.title}</span>
-                      </div>
-                    ))}
-                 </div>
-              </div>
-            </div>
-            <div className="p-10 bg-white/50 border-t border-[#2D473911] flex justify-end flex-shrink-0">
-              <button onClick={() => { setSelectedProject(null); onNavigate('projects'); }} className="px-14 py-5 bg-[#2D4739] text-white rounded-[2rem] text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center gap-3">Gerenciar no Painel <ArrowRight size={18} /></button>
-            </div>
-          </div>
+
         </div>
-      )}
+      </div>
+
+      {/* BLOCO 2: FLUXO DE PRODUÇÃO VISUAL */}
+      <div className="bg-white/60 backdrop-blur-sm p-8 rounded-[3rem] border border-[#2D473911] shadow-xl">
+        <div className="flex justify-between items-center mb-8">
+           <h3 className="text-lg font-black text-[#2D4739] uppercase tracking-tight flex items-center gap-3">
+             <Activity size={20} className="text-[#6B8E23]" /> Linha de Produção
+           </h3>
+           <button onClick={() => onNavigate('projects')} className="text-[10px] font-black uppercase tracking-widest text-[#2D473966] hover:text-[#2D4739] flex items-center gap-1">
+             Ver Quadro <ArrowRight size={12} />
+           </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           <ProductionStep label="Preparação" count={kpis.pipeline.prep} color="bg-slate-100 text-slate-600" step="01" />
+           <ProductionStep label="Corte" count={kpis.pipeline.cut} color="bg-orange-50 text-orange-600" step="02" icon={<Hammer size={14}/>} />
+           <ProductionStep label="Montagem" count={kpis.pipeline.assembly} color="bg-blue-50 text-blue-600" step="03" icon={<Package size={14}/>} />
+           <ProductionStep label="Entrega" count={kpis.pipeline.delivery} color="bg-green-50 text-green-700" step="04" icon={<Truck size={14}/>} />
+        </div>
+      </div>
+
+      {/* BLOCO 3: TIMELINE & AÇÕES */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+         
+         {/* Timeline */}
+         <div className="bg-white p-8 rounded-[3rem] border border-[#2D473911] shadow-xl flex flex-col h-full">
+            <h3 className="text-lg font-black text-[#2D4739] uppercase tracking-tight flex items-center gap-3 mb-6">
+               <Clock size={20} className="text-[#6B8E23]" /> Acontecimentos
+            </h3>
+            
+            <div className="flex-1 space-y-4 relative">
+               <div className="absolute left-6 top-4 bottom-4 w-px bg-[#2D473908]"></div>
+               {kpis.activities.map((act, i) => (
+                   <div key={i} className="flex items-center gap-4 relative z-10 group">
+                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-4 border-white shadow-sm transition-transform group-hover:scale-110 ${act.color}`}>
+                           {act.icon}
+                       </div>
+                       <div className="flex-1 p-4 bg-[#FDFBE2]/30 rounded-2xl border border-[#2D473905] group-hover:bg-white group-hover:border-[#2D473911] transition-all">
+                           <p className="text-xs font-black text-[#2D4739] truncate">{act.text}</p>
+                           <p className="text-[9px] font-bold text-[#2D473944] uppercase tracking-widest">{act.date}</p>
+                       </div>
+                   </div>
+               ))}
+               {kpis.activities.length === 0 && (
+                   <div className="py-8 text-center opacity-40">
+                       <p className="text-xs font-black uppercase text-[#2D4739]">Nenhuma atividade recente</p>
+                   </div>
+               )}
+            </div>
+         </div>
+
+         {/* Ações Rápidas (Grid Expandido) */}
+         <div className="flex flex-col gap-6">
+            <div className="bg-[#2D4739] p-8 rounded-[3rem] shadow-xl border border-white/10 h-full flex flex-col">
+               <h3 className="text-lg font-black text-[#FDFBE2] uppercase tracking-tight mb-6 flex items-center gap-2">
+                  <Activity size={20} /> Ações Rápidas
+               </h3>
+               <div className="grid grid-cols-2 gap-4 flex-1">
+                  <QuickAction 
+                      icon={<Calculator size={24} />} 
+                      label="Novo Orçamento" 
+                      sub="Criar Proposta"
+                      onClick={() => onNavigate('budgets')} 
+                      color="bg-[#6B8E23] text-white hover:bg-[#5a7a1c]"
+                  />
+                  <QuickAction 
+                      icon={<Users size={24} />} 
+                      label="Novo Cliente" 
+                      sub="Cadastrar"
+                      onClick={() => onNavigate('clients')} 
+                      color="bg-white/10 text-[#FDFBE2] hover:bg-white/20"
+                  />
+                  <QuickAction 
+                      icon={<Package size={24} />} 
+                      label="Entrada Estoque" 
+                      sub="Registrar Compra"
+                      onClick={() => onNavigate('inventory')} 
+                      color="bg-white/10 text-[#FDFBE2] hover:bg-white/20"
+                  />
+                  <QuickAction 
+                      icon={<TrendingDown size={24} />} 
+                      label="Lançar Despesa" 
+                      sub="Financeiro"
+                      onClick={() => onNavigate('finance')} 
+                      color="bg-red-500/20 text-red-100 hover:bg-red-500/30 border border-red-500/10"
+                  />
+               </div>
+            </div>
+         </div>
+
+      </div>
     </div>
   );
 };
 
-const StatCard: React.FC<{ icon: React.ReactNode, label: string, value: string, subText: string, accentColor: string, onClick?: () => void }> = ({ icon, label, value, subText, accentColor, onClick }) => (
-  <div onClick={onClick} className={`bg-white p-10 rounded-[3.5rem] shadow-2xl border border-[#2D473911] hover:-translate-y-2 transition-all group relative overflow-hidden ${onClick ? 'cursor-pointer' : ''}`}>
-    <div className="absolute top-0 right-0 w-32 h-32 opacity-[0.03] group-hover:scale-150 transition-transform"><TrendingUp size={150} /></div>
-    <div className="flex justify-between items-start mb-10">
-      <div className="p-5 bg-[#FDFBE2] rounded-2xl shadow-inner border border-[#2D473908] text-[#2D4739]">{icon}</div>
-      <ArrowRight size={24} className="text-[#2D473911] group-hover:text-[#6B8E23] transition-colors" />
-    </div>
-    <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-[#2D473944] mb-2">{label}</h4>
-    <p className="text-5xl font-black text-[#2D4739] tracking-tighter mb-3">{value}</p>
-    <p className="text-[10px] font-bold text-[#2D473988] uppercase tracking-widest">{subText}</p>
-    <div className="absolute bottom-0 left-0 h-1.5 w-full bg-[#2D473908]"><div className="h-full bg-current opacity-40" style={{ width: '100%', backgroundColor: accentColor }}></div></div>
+// Componente: Passo da Produção
+const ProductionStep: React.FC<{ label: string, count: number, color: string, icon?: React.ReactNode, step: string }> = ({ label, count, color, icon, step }) => (
+  <div className={`p-4 rounded-[2rem] flex flex-col items-center justify-center text-center gap-2 transition-all hover:scale-105 border-2 border-transparent hover:border-current relative overflow-hidden group ${color}`}>
+     <span className="absolute top-2 right-3 text-[40px] font-black opacity-10 select-none group-hover:opacity-20 transition-opacity">{step}</span>
+     <div className="opacity-80 relative z-10">{icon}</div>
+     <div className="relative z-10">
+       <span className="text-3xl font-black block leading-none">{count}</span>
+       <span className="text-[8px] font-black uppercase tracking-widest opacity-60">{label}</span>
+     </div>
   </div>
 );
 
-const QuickActionButton: React.FC<{ icon: React.ReactNode, label: string, color: string, onClick: () => void }> = ({ icon, label, color, onClick }) => (
-  <button onClick={onClick} className="w-full flex items-center gap-6 p-6 rounded-[2.5rem] bg-[#FDFBE2]/30 border border-[#2D473908] hover:border-[#6B8E23] hover:bg-white transition-all shadow-sm group">
-    <div className="p-4 bg-white rounded-2xl shadow-sm text-[#2D4739] group-hover:scale-110 transition-transform" style={{ color: color }}>{icon}</div>
-    <span className="text-xs font-black uppercase tracking-[0.3em] text-[#2D4739]">{label}</span>
+// Componente: Botão de Ação Rápida
+const QuickAction: React.FC<{ icon: React.ReactNode, label: string, sub: string, onClick: () => void, color: string }> = ({ icon, label, sub, onClick, color }) => (
+  <button 
+    onClick={onClick} 
+    className={`flex flex-col items-start justify-center gap-1 p-5 rounded-[2rem] shadow-lg transition-all active:scale-95 ${color}`}
+  >
+    <div className="mb-2">{icon}</div>
+    <span className="text-xs font-black uppercase tracking-wide text-left leading-tight">{label}</span>
+    <span className="text-[8px] font-bold uppercase tracking-widest opacity-60">{sub}</span>
   </button>
 );
-
-const Calendar: React.FC<{ projects: Project[], onProjectClick: (p: Project) => void }> = ({ projects, onProjectClick }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDay = new Date(year, month, 1).getDay();
-  const days = [];
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-  const isToday = (day: number) => {
-    const t = new Date();
-    return t.getDate() === day && t.getMonth() === month && t.getFullYear() === year;
-  };
-
-  const getDayProjects = (day: number) => {
-    if (!day) return [];
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return projects.filter(p => p.deadline === dateStr && !p.isPaid);
-  };
-
-  return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-10 text-white/40 font-black uppercase text-[10px] tracking-[1em] px-10">
-        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-      </div>
-      <div className="grid grid-cols-7 gap-6">
-        {days.map((d, i) => (
-          <div key={i} className={`min-h-[140px] p-6 rounded-[2.5rem] border-2 border-white/5 transition-all ${d ? 'bg-white/5 hover:bg-white/10 cursor-default' : 'opacity-0'}`}>
-            {d && (
-              <>
-                <div className="flex justify-between items-start mb-4">
-                  <span className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-lg ${isToday(d) ? 'bg-[#6B8E23] text-white shadow-xl' : 'text-white/40'}`}>{d}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {getDayProjects(d).map(p => (
-                    <button 
-                      key={p.id} 
-                      onClick={() => onProjectClick(p)}
-                      className={`w-4 h-4 rounded-full ${p.priority === 'Urgente' ? 'bg-red-500' : 'bg-[#6B8E23]'} border-2 border-[#2D4739] hover:scale-150 transition-all shadow-xl`}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 export default Dashboard;
