@@ -1,32 +1,28 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// 1. Corrigido de GoogleGenAI para GoogleGenerativeAI
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+// 1. Correção do erro de Interface (VITE_GEMINI_API_KEY)
+const API_KEY = (import.meta as any).env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 export const geminiModel = genAI.getGenerativeModel({
   model: "gemini-1.5-flash",
-  generationConfig: {
-    // 2. Corrigido de 'Type' para 'SchemaType'
-    responseMimeType: "application/json",
-    responseSchema: {
-      type: SchemaType.OBJECT,
-      properties: {
-        resposta: {
-          type: SchemaType.STRING,
-        },
-        // Adicione outros campos do seu schema aqui seguindo o mesmo padrão
-      },
-    },
-  },
 });
 
-// Exemplo de como deve ser a estrutura do Schema se você estiver usando um:
-const schema = {
-  description: "Exemplo de schema",
-  type: SchemaType.OBJECT,
-  properties: {
-    projeto: { type: SchemaType.STRING },
-    valor: { type: SchemaType.NUMBER },
-  },
-  required: ["projeto"],
+// 2. Correção do erro 'getDailyVerse' (Exportando a função que o App.tsx procura)
+export const getDailyVerse = async () => {
+  try {
+    // Usando a forma correta de configurar o JSON sem o SchemaType que deu erro
+    const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: "Gere um versículo bíblico diário para marceneiros em formato JSON com o campo 'resposta'." }] }],
+        generationConfig: {
+            responseMimeType: "application/json",
+        }
+    });
+    
+    const response = await result.response;
+    return JSON.parse(response.text());
+  } catch (error) {
+    console.error("Erro ao buscar versículo:", error);
+    return { resposta: "Tudo o que fizerem, façam de todo o coração." };
+  }
 };
