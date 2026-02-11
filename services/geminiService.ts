@@ -1,20 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { FinancialPrediction, BibleVerse } from "../types";
 
-// Função auxiliar para inicializar o modelo com segurança
-const getAiModel = () => {
-  const apiKey = import.meta.env?.VITE_API_KEY;
-  if (!apiKey) {
-    console.warn("API Key do Google Gemini não encontrada (VITE_API_KEY).");
-    return null;
-  }
-  
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash"
-    // generationConfig removido para evitar erro de tipo TS, o JSON será forçado via prompt
-  });
-};
+// Inicializa a IA com a chave de API do ambiente
+const apiKey = import.meta.env?.VITE_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const getFinancialPrediction = async (
   currentRevenue: number,
@@ -22,36 +11,49 @@ export const getFinancialPrediction = async (
   expenses: number,
   activeProjectsCount: number
 ): Promise<FinancialPrediction | null> => {
-  const model = getAiModel();
-  if (!model) return null;
+  if (!ai) {
+    console.warn("API Key do Google Gemini não encontrada.");
+    return null;
+  }
 
   const prompt = `
-    Analise o cenário financeiro desta marcenaria e retorne APENAS um objeto JSON válido (sem markdown, sem backticks) com o seguinte formato:
-    {
-      "estimatedRevenue": number,
-      "estimatedProfit": number,
-      "riskAlerts": ["string"],
-      "suggestions": ["string"]
-    }
-
+    Analise o cenário financeiro desta marcenaria.
     Dados atuais:
     - Faturamento Realizado: R$ ${currentRevenue}
-    - Faturamento Pendente (Sinais/A receber): R$ ${pendingRevenue}
-    - Total de Despesas (Fixas + Materiais): R$ ${expenses}
-    - Projetos Ativos em Produção: ${activeProjectsCount}
+    - Faturamento Pendente: R$ ${pendingRevenue}
+    - Despesas: R$ ${expenses}
+    - Projetos Ativos: ${activeProjectsCount}
     
-    Baseado nisso, calcule uma previsão realista para o próximo mês.
+    Calcule uma previsão realista.
   `;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Limpeza de segurança para remover ```json e ``` caso a IA os inclua
-    const cleanText = text.replace(/```json|```/g, '').trim();
-    
-    return JSON.parse(cleanText) as FinancialPrediction;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            estimatedRevenue: { type: Type.NUMBER },
+            estimatedProfit: { type: Type.NUMBER },
+            riskAlerts: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING } 
+            },
+            suggestions: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING } 
+            },
+          },
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) return null;
+    return JSON.parse(text) as FinancialPrediction;
   } catch (error) {
     console.error("Financial prediction failed:", error);
     return null;
@@ -59,27 +61,30 @@ export const getFinancialPrediction = async (
 };
 
 export const getDailyVerse = async (): Promise<BibleVerse | null> => {
-  const model = getAiModel();
-  if (!model) return null;
+  if (!ai) return null;
 
-  const prompt = `
-    Selecione um versículo bíblico motivador que se relacione com trabalho duro, excelência, sabedoria ou construção/carpintaria.
-    Retorne APENAS um objeto JSON válido (sem markdown, sem backticks) no seguinte formato:
-    {
-      "text": "O texto do versículo",
-      "reference": "Livro Capítulo:Versículo",
-      "meaning": "Uma breve explicação de uma frase sobre como isso se aplica ao trabalho"
-    }
-  `;
+  const prompt = `Selecione um versículo bíblico motivador sobre trabalho, sabedoria ou construção.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    const cleanText = text.replace(/```json|```/g, '').trim();
-    
-    return JSON.parse(cleanText) as BibleVerse;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            text: { type: Type.STRING },
+            reference: { type: Type.STRING },
+            meaning: { type: Type.STRING },
+          },
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) return null;
+    return JSON.parse(text) as BibleVerse;
   } catch (error) {
     console.error("Daily verse failed:", error);
     return null;
