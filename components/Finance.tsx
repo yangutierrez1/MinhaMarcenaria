@@ -129,11 +129,6 @@ const Finance: React.FC<FinanceProps> = ({
 
   // --- CALCULATION HELPERS ---
   const calculateProjectFinancials = (project: Project, overrides?: Record<string, number>) => {
-    // 1. Calculate Material Costs (Summing individual items)
-    // Se 'overrides' for passado (durante edição), usa ele.
-    // Senão, usa 'project.customMaterialCosts' (salvo).
-    // Senão, usa custo de estoque calculado.
-    
     const costMap = overrides || project.customMaterialCosts || {};
     
     let totalMaterialCost = 0;
@@ -142,22 +137,16 @@ const Finance: React.FC<FinanceProps> = ({
        if (costMap[pm.materialId] !== undefined) {
           totalMaterialCost += costMap[pm.materialId];
        } else {
-          // Fallback legacy global custom cost check (if strictly needed, but better to migrate)
-          // For now, if no specific custom cost, use calculated
           const mat = materials.find(m => m.id === pm.materialId);
           totalMaterialCost += (mat ? mat.price * pm.quantity : 0);
        }
     });
 
-    // Fallback: Se houver um custo customizado global antigo e nenhum mapa novo
     if (project.customMaterialCost !== undefined && (!project.customMaterialCosts || Object.keys(project.customMaterialCosts).length === 0) && !overrides) {
         totalMaterialCost = project.customMaterialCost;
     }
 
-    // 2. Operational Costs (Sum of ops array)
     const operationalCost = (project.operationalCosts || []).reduce((acc, op) => acc + op.value, 0);
-
-    // 3. Labor Cost (Saved on project creation or 0)
     const laborCost = project.laborCost || 0;
 
     const totalCost = totalMaterialCost + operationalCost + laborCost;
@@ -179,7 +168,6 @@ const Finance: React.FC<FinanceProps> = ({
   const handleOpenProfitModal = (project: Project) => {
       setSelectedProjectForProfit(project);
       
-      // Initialize inputs for each material
       const initialCosts: Record<string, string> = {};
       
       project.materials.forEach(pm => {
@@ -188,7 +176,6 @@ const Finance: React.FC<FinanceProps> = ({
          if (savedCost !== undefined) {
             initialCosts[pm.materialId] = formatBRL(savedCost as number);
          } else {
-            // Default calculated
             const mat = materials.find(m => m.id === pm.materialId);
             initialCosts[pm.materialId] = formatBRL((mat?.price || 0) * pm.quantity);
          }
@@ -207,26 +194,23 @@ const Finance: React.FC<FinanceProps> = ({
       
       const newCostsMap: Record<string, number> = {};
       Object.entries(tempMaterialCosts).forEach(([id, valStr]) => {
-          newCostsMap[id] = parseCurrencyInput(valStr);
+          newCostsMap[id] = parseCurrencyInput(valStr as string);
       });
 
       onUpdateProject(selectedProjectForProfit.id, { customMaterialCosts: newCostsMap });
       setIsProfitModalOpen(false);
   };
 
-  // Cálculo de Totais Acumulados (Todo o Período)
+  // Cálculo de Totais Acumulados (Todo o Período - Geral)
   const allTimeTotals = useMemo(() => {
-    // 1. Entradas de Projetos (Pagos ou Sinais Pagos)
     const projectsReceived = projects.reduce((sum, p) => {
       if (p.isPaid) return sum + p.value;
       if (p.isAdvancePaid) return sum + (p.advanceValue || 0);
       return sum;
     }, 0);
 
-    // 2. Receitas Manuais
     const manualReceived = manualRevenues.reduce((sum, r) => sum + r.value, 0);
 
-    // 3. Despesas Fixas Pagas (Recorrentes somam por mês pago, Avulsas somam se pagas)
     const expensesPaid = fixedExpenses.reduce((sum, e) => {
       if (e.isRecurring) {
         return sum + (e.value * (e.paidMonths?.length || 0));
@@ -234,7 +218,6 @@ const Finance: React.FC<FinanceProps> = ({
       return e.status === 'Pago' ? sum + e.value : sum;
     }, 0);
 
-    // 4. Dívidas/Materiais Pagos
     const debtsPaid = debts.reduce((sum, d) => d.status === 'Pago' ? sum + d.value : sum, 0);
 
     const totalIn = projectsReceived + manualReceived;
@@ -247,6 +230,54 @@ const Finance: React.FC<FinanceProps> = ({
     };
   }, [projects, manualRevenues, fixedExpenses, debts]);
 
+  // --- CÁLCULO DE SALDO ANTERIOR (MÊS PASSADO) ---
+  const previousBalance = useMemo(() => {
+    // Data de corte: Primeiro dia do mês selecionado
+    const startOfSelectedMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    const startStr = startOfSelectedMonth.toISOString().split('T')[0]; // YYYY-MM-DD
+    const monthStr = startStr.slice(0, 7); // YYYY-MM
+
+    let balance = 0;
+
+    // 1. Entradas de Projetos (Anteriores)
+    projects.forEach(p => {
+        // Usamos deadline como data base de caixa por enquanto (ou paymentDate se existisse)
+        if (p.deadline < startStr) {
+             if (p.isPaid) balance += p.value;
+             else if (p.isAdvancePaid) balance += (p.advanceValue || 0);
+        }
+    });
+
+    // 2. Receitas Manuais (Anteriores)
+    manualRevenues.forEach(r => {
+        if (r.date < startStr) balance += r.value;
+    });
+
+    // 3. Despesas Fixas (Anteriores)
+    fixedExpenses.forEach(e => {
+        if (e.isRecurring && e.paidMonths) {
+            // Conta meses pagos que são estritamente anteriores ao mês atual
+            const count = e.paidMonths.filter(pm => pm < monthStr).length;
+            balance -= (e.value * count);
+        } else {
+            // Avulsa e Paga antes do mês atual
+            if (e.status === 'Pago' && e.dueDate < startStr) {
+                balance -= e.value;
+            }
+        }
+    });
+
+    // 4. Dívidas / Materiais (Anteriores)
+    debts.forEach(d => {
+        if (d.status === 'Pago' && d.dueDate < startStr) {
+            balance -= d.value;
+        }
+    });
+
+    return balance;
+  }, [selectedDate, projects, manualRevenues, fixedExpenses, debts]);
+
+  // Filtra dados para o mês atual
   const filteredData = useMemo(() => {
     const m = selectedDate.getMonth();
     const y = selectedDate.getFullYear();
@@ -278,6 +309,7 @@ const Finance: React.FC<FinanceProps> = ({
     };
   }, [selectedDate, projects, fixedExpenses, manualRevenues, debts]);
 
+  // Totais do Mês Atual + Saldo Acumulado
   const totals = useMemo(() => {
     const projectInvoiced = filteredData.projects.reduce((sum, p) => sum + p.value, 0);
     const manualInvoiced = filteredData.manualRevenues.reduce((sum, r) => sum + r.value, 0);
@@ -298,7 +330,9 @@ const Finance: React.FC<FinanceProps> = ({
     const totalDebts = filteredData.debts.reduce((sum, d) => d.status !== 'Pago' ? sum + d.value : sum, 0);
     const totalOut = totalFixed + totalDebts;
 
-    const netProfit = totalReceived - totalOut;
+    const netProfit = totalReceived - totalOut; // Resultado do Mês
+    const accumulatedBalance = previousBalance + netProfit; // Saldo Final Disponível
+
     const margin = totalInvoiced > 0 ? (netProfit / totalInvoiced) * 100 : 0;
     const inventoryValue = materials.reduce((sum, m) => sum + (m.price * m.quantity), 0);
 
@@ -311,9 +345,10 @@ const Finance: React.FC<FinanceProps> = ({
       margin: margin || 0, 
       inventory: inventoryValue || 0,
       fixed: totalFixed || 0,
-      debts: totalDebts || 0
+      debts: totalDebts || 0,
+      accumulatedBalance // Disponibiliza para a UI
     };
-  }, [filteredData, materials, currentMonthYear, projects]);
+  }, [filteredData, materials, currentMonthYear, projects, previousBalance]);
 
   const chartData = [
     { name: 'Entrada Real', valor: totals.received, fill: '#6B8E23' },
@@ -361,7 +396,7 @@ const Finance: React.FC<FinanceProps> = ({
           value: val, 
           dueDate: formDate, 
           status: 'Pendente',
-          manualMaterials: [] // Empty materials list as we are not registering items anymore
+          manualMaterials: [] 
         });
       }
     } else if (modalType === 'project-revenue') {
@@ -371,16 +406,14 @@ const Finance: React.FC<FinanceProps> = ({
     } else if (modalType === 'op-fund-spend') {
         if (isNaN(val) || val <= 0) return alert("Informe um valor válido.");
         
-        // Salva como uma despesa fixa, mas com marcador especial na descrição
-        // Usamos 'Outros' como categoria base do sistema, mas a descrição carrega a categoria do insumo
         const taggedDesc = `${formDesc || 'Compra de Insumo'} ||_OP_SPEND_::${opFundCategory}`;
         
         onAddFixedExpense({ 
             description: taggedDesc, 
             value: val, 
             dueDate: formDate, 
-            category: 'Outros', // Categoria genérica do sistema
-            status: 'Pago', // Assume pago pois é retirada do caixa operacional
+            category: 'Outros', 
+            status: 'Pago', 
             isRecurring: false,
             paidMonths: []
         });
@@ -458,14 +491,14 @@ const Finance: React.FC<FinanceProps> = ({
          <div className="z-10 flex-1">
              <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm shadow-inner"><Landmark size={24} /></div>
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] opacity-80">Caixa Geral Acumulado</h3>
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] opacity-80">Caixa Geral da Empresa</h3>
              </div>
              <div className="space-y-2">
                 <p className="text-6xl font-black tracking-tighter">R$ {allTimeTotals.balance.toLocaleString('pt-BR')}</p>
                 <div className="flex flex-wrap gap-4 text-[10px] font-black uppercase tracking-widest opacity-60">
-                   <span className="flex items-center gap-1"><ArrowUpRight size={12} className="text-[#6B8E23]" /> Entradas: R$ {allTimeTotals.totalIn.toLocaleString('pt-BR')}</span>
+                   <span className="flex items-center gap-1"><ArrowUpRight size={12} className="text-[#6B8E23]" /> Total Entradas: R$ {allTimeTotals.totalIn.toLocaleString('pt-BR')}</span>
                    <span className="w-1 h-1 rounded-full bg-white/40 mt-1.5"></span>
-                   <span className="flex items-center gap-1"><ArrowDownRight size={12} className="text-red-400" /> Saídas: R$ {allTimeTotals.totalOut.toLocaleString('pt-BR')}</span>
+                   <span className="flex items-center gap-1"><ArrowDownRight size={12} className="text-red-400" /> Total Saídas: R$ {allTimeTotals.totalOut.toLocaleString('pt-BR')}</span>
                 </div>
              </div>
          </div>
@@ -474,11 +507,39 @@ const Finance: React.FC<FinanceProps> = ({
          </div>
       </div>
 
+      {/* Grid de KPIs do Mês - COM SALDO ANTERIOR */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard icon={<DollarSign size={24} />} label="Faturamento Previsto" value={`R$ ${totals.invoiced.toLocaleString('pt-BR')}`} sub="Contratos e vendas (Mês)" color="#2D4739" />
-        <KPICard icon={<Banknote size={24} />} label="Recebimento Efetivo" value={`R$ ${totals.received.toLocaleString('pt-BR')}`} sub="Entradas do Mês" color="#6B8E23" />
-        <KPICard icon={<TrendingDown size={24} />} label="Saldo à Pagar" value={`R$ ${totals.totalOut.toLocaleString('pt-BR')}`} sub="Boletos em aberto (Mês)" color="#E11D48" />
-        <KPICard icon={<TrendingUp size={24} />} label="Resultado do Mês" value={`R$ ${totals.net.toLocaleString('pt-BR')}`} sub="Lucro líquido mensal" color={totals.net >= 0 ? "#059669" : "#E11D48"} />
+        <KPICard 
+            icon={<History size={24} />} 
+            label="Saldo Anterior" 
+            value={`R$ ${previousBalance.toLocaleString('pt-BR')}`} 
+            sub="Vindo do mês passado" 
+            color="#2D4739" 
+        />
+        
+        <KPICard 
+            icon={<TrendingUp size={24} />} 
+            label="Resultado do Mês" 
+            value={`R$ ${totals.net.toLocaleString('pt-BR')}`} 
+            sub="Entradas - Saídas (Mês)" 
+            color={totals.net >= 0 ? "#6B8E23" : "#E11D48"} 
+        />
+
+        <KPICard 
+            icon={<Wallet size={24} />} 
+            label="Saldo Final Disponível" 
+            value={`R$ ${totals.accumulatedBalance.toLocaleString('pt-BR')}`} 
+            sub="Anterior + Resultado" 
+            color="#2D4739" 
+        />
+
+        <KPICard 
+            icon={<TrendingDown size={24} />} 
+            label="Contas à Pagar" 
+            value={`R$ ${totals.totalOut.toLocaleString('pt-BR')}`} 
+            sub="Saídas pendentes/pagas" 
+            color="#E11D48" 
+        />
       </div>
 
       <div className="w-full">
@@ -487,7 +548,7 @@ const Finance: React.FC<FinanceProps> = ({
               <h3 className="text-xl font-black text-[#2D4739] uppercase tracking-tighter">Fluxo de Caixa Mensal</h3>
               <div className="flex gap-4">
                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#6B8E23]" /><span className="text-[10px] font-black uppercase text-[#2D473966]">Recebido</span></div>
-                 <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#E11D48]" /><span className="text-[10px] font-black uppercase text-[#2D473966]">Pendente</span></div>
+                 <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-[#E11D48]" /><span className="text-[10px] font-black uppercase text-[#2D473966]">Pago/Pendente</span></div>
               </div>
            </div>
            <div className="h-[300px] w-full">
