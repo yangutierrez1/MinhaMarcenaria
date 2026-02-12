@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Material } from '../types';
-import { Plus, Edit2, Trash2, Save, Package, Coins, Search, Layers, DollarSign, Store, Calculator, Calendar, Tag, ChevronDown, ListPlus, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, Package, Coins, Search, Layers, DollarSign, Store, Calculator, Calendar, Tag, ChevronDown, ListPlus, XCircle, RefreshCw } from 'lucide-react';
 import { formatBRL, parseCurrencyInput } from '../utils/format';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
@@ -26,6 +26,21 @@ const MATERIAL_TYPES = [
   'Elétrica / LED',
   'Outros'
 ];
+
+const UNITS_BY_CATEGORY: Record<string, string> = {
+  'MDF / Chapas': 'Chapa',
+  'Madeira Maciça': 'm³',
+  'Ferragens': 'Unidade',
+  'Fitas de Borda': 'Rolo',
+  'Químicos / Colas': 'Lata',
+  'Acessórios': 'Unidade',
+  'Ferramentas': 'Unidade',
+  'Vidros / Espelhos': 'm²',
+  'Elétrica / LED': 'Unidade',
+  'Outros': 'Unidade'
+};
+
+const UNITS_OPTIONS = ['Chapa', 'Unidade', 'm²', 'm³', 'Metro', 'Rolo', 'Lata', 'Galão', 'Barra', 'Caixa', 'Par', 'Kg', 'Litro'];
 
 const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBatchMaterials, onAddStock, onUpdateMaterial, onDeleteMaterial }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,7 +91,10 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
   };
 
   const resetForm = () => {
-    setName(''); setSupplier(''); setCategory('MDF / Chapas'); setQuantity(0); setPrice(0); setUnit('Chapa');
+    setName(''); setSupplier(''); 
+    setCategory('MDF / Chapas'); 
+    setUnit(UNITS_BY_CATEGORY['MDF / Chapas']); // Reset unit based on default category
+    setQuantity(0); setPrice(0);
     setPriceInput('0,00');
     setPendingMaterials([]);
     setCustomFinanceValue('0,00');
@@ -113,6 +131,15 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
     }
   };
 
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCat = e.target.value;
+    setCategory(newCat);
+    // Auto-update unit based on category mapping
+    if (UNITS_BY_CATEGORY[newCat]) {
+        setUnit(UNITS_BY_CATEGORY[newCat]);
+    }
+  };
+
   const handleAddToBatch = () => {
     if (!name.trim()) return alert("Nome do material é obrigatório.");
     if (quantity <= 0) return alert("Quantidade deve ser maior que zero.");
@@ -125,11 +152,26 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
     setQuantity(0);
     setPrice(0);
     setPriceInput('0,00');
-    // Mantém supplier e category para agilizar
+    // Mantém supplier, category e unit para agilizar
   };
 
   const handleRemoveFromBatch = (index: number) => {
     setPendingMaterials(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Função para padronizar unidades existentes
+  const handleStandardizeUnits = () => {
+    if (!confirm("Isso atualizará a unidade de medida de todos os produtos do estoque baseando-se na categoria deles. Deseja continuar?")) return;
+    
+    let count = 0;
+    materials.forEach(m => {
+       const standardUnit = UNITS_BY_CATEGORY[m.category];
+       if (standardUnit && m.unit !== standardUnit) {
+          onUpdateMaterial(m.id, { unit: standardUnit });
+          count++;
+       }
+    });
+    alert(`${count} produtos foram atualizados para a unidade padrão da categoria.`);
   };
 
   // Cálculo do total do lote para exibir no financeiro
@@ -188,16 +230,27 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
   return (
     <div className="space-y-10 animate-fade-in pb-20">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-[#2D4739] p-8 rounded-[3rem] text-white flex items-center justify-between shadow-2xl border border-white/5">
-           <div className="space-y-1">
+        <div className="bg-[#2D4739] p-8 rounded-[3rem] text-white flex items-center justify-between shadow-2xl border border-white/5 relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-[#6B8E23] opacity-10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+           <div className="space-y-1 relative z-10">
              <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Valor Total em Estoque</p>
              <p className="text-3xl font-black tracking-tighter">R$ {formatBRL(totalValue)}</p>
            </div>
-           <Coins size={40} className="text-[#6B8E23] opacity-30" />
+           <Coins size={40} className="text-[#6B8E23] opacity-30 relative z-10" />
         </div>
-        <Button onClick={openAddModal} variant="secondary" className="h-full rounded-[3rem]" fullWidth icon={<Plus size={24} />}>
-           Movimentar Estoque
-        </Button>
+        <div className="flex gap-4">
+            <Button onClick={openAddModal} variant="secondary" className="h-full rounded-[3rem] flex-1" icon={<Plus size={24} />}>
+               Movimentar Estoque
+            </Button>
+            <button 
+                onClick={handleStandardizeUnits}
+                className="h-full px-6 bg-white border border-[#2D473911] text-[#2D473944] hover:text-[#2D4739] hover:bg-[#FDFBE2] rounded-[3rem] flex flex-col items-center justify-center gap-2 transition-all shadow-sm group"
+                title="Padronizar Unidades de Medida"
+            >
+                <RefreshCw size={20} className="group-hover:rotate-180 transition-transform duration-500" />
+                <span className="text-[8px] font-black uppercase tracking-widest text-center hidden md:block">Padronizar<br/>Unidades</span>
+            </button>
+        </div>
       </div>
 
       <div className="card-base">
@@ -298,7 +351,7 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
                    <div className="relative group">
                       <select 
                         value={category} 
-                        onChange={e => setCategory(e.target.value)} 
+                        onChange={handleCategoryChange}
                         className="w-full p-4 bg-white text-[#2D4739] rounded-xl outline-none focus:ring-2 focus:ring-[#6B8E23] transition-all appearance-none cursor-pointer font-bold border border-[#2D473911]"
                       >
                          {MATERIAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -310,6 +363,23 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
                  </div>
 
                  <div className="space-y-2">
+                   <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Unidade de Medida</label>
+                   <div className="relative group">
+                      <select 
+                        value={unit} 
+                        onChange={e => setUnit(e.target.value)} 
+                        className="w-full p-4 bg-white text-[#2D4739] rounded-xl outline-none focus:ring-2 focus:ring-[#6B8E23] transition-all appearance-none cursor-pointer font-bold border border-[#2D473911]"
+                      >
+                         {UNITS_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#2D4739] pointer-events-none">
+                          <ChevronDown size={16} />
+                      </div>
+                   </div>
+                 </div>
+              </div>
+
+              <div className="space-y-2">
                    <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Fornecedor / Loja</label>
                    <input 
                       type="text" 
@@ -318,7 +388,6 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
                       className="w-full p-4 bg-[#2D4739] text-[#FDFBE2] rounded-xl placeholder:text-[#FDFBE2]/30 outline-none focus:ring-2 focus:ring-[#6B8E23] transition-all font-bold" 
                       placeholder="Ex: Leo Madeiras" 
                     />
-                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-6">
