@@ -7,7 +7,7 @@ import {
   Banknote, Receipt, Truck, Calendar,
   ChevronLeft, ChevronRight, ShoppingBag, Search, Tag, ArrowDownRight,
   Check, Clock, Wallet, History, ArrowUpRight, Layers, RotateCcw,
-  Edit2, FileText, LayoutDashboard, Landmark, Archive
+  Edit2, FileText, LayoutDashboard, Landmark, Archive, ShoppingCart
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip
@@ -37,6 +37,14 @@ interface FinanceProps {
   monthlyGoal: number;
   setMonthlyGoal: (goal: number) => void;
 }
+
+const DEFAULT_CATEGORIES = [
+  'Parafuso', 'Bucha', 'Silicone', 'Cola de fita', 
+  'Energia', 'Manutenção de maquinas', 'Combustivel', 
+  'Produtos de limpeza', 'Ferramentas'
+];
+
+const cleanDescription = (desc: string) => desc.replace(/\|\|_OP_SPEND_::.*/, '').trim();
 
 const KPICard: React.FC<{ icon: React.ReactNode, label: string, value: string, sub: string, color: string }> = ({ icon, label, value, sub, color }) => (
   <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-[#2D473911] hover:-translate-y-1 transition-all group relative overflow-hidden">
@@ -70,7 +78,7 @@ const Finance: React.FC<FinanceProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'receivables' | 'expenses' | 'operational-fund' | 'history'>('overview');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'expense' | 'revenue' | 'stock' | 'project-revenue'>('expense');
+  const [modalType, setModalType] = useState<'expense' | 'revenue' | 'stock' | 'project-revenue' | 'op-fund-spend'>('expense');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   
@@ -99,6 +107,9 @@ const Finance: React.FC<FinanceProps> = ({
   const [formClient, setFormClient] = useState('');
   const [formSupplier, setFormSupplier] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
+  
+  // Operational Fund Spend State
+  const [opFundCategory, setOpFundCategory] = useState(DEFAULT_CATEGORIES[0]);
   
   // Stock Entry States (Kept for compatibility if needed elsewhere, but mostly unused in this modal now)
   const [isNewMaterial, setIsNewMaterial] = useState(true);
@@ -234,6 +245,7 @@ const Finance: React.FC<FinanceProps> = ({
         if (modalType === 'expense') onDeleteFixedExpense(editingId);
         if (modalType === 'stock') onDeleteDebt(editingId);
         if (modalType === 'revenue') onDeleteManualRevenue(editingId);
+        if (modalType === 'op-fund-spend') onDeleteFixedExpense(editingId);
         
         setIsModalOpen(false);
         setConfirmConfig(prev => ({ ...prev, isOpen: false }));
@@ -268,6 +280,22 @@ const Finance: React.FC<FinanceProps> = ({
       if (editingId && !isNaN(val)) {
         onUpdateProject(editingId, { value: val });
       }
+    } else if (modalType === 'op-fund-spend') {
+        if (isNaN(val) || val <= 0) return alert("Informe um valor válido.");
+        
+        // Salva como uma despesa fixa, mas com marcador especial na descrição
+        // Usamos 'Outros' como categoria base do sistema, mas a descrição carrega a categoria do insumo
+        const taggedDesc = `${formDesc || 'Compra de Insumo'} ||_OP_SPEND_::${opFundCategory}`;
+        
+        onAddFixedExpense({ 
+            description: taggedDesc, 
+            value: val, 
+            dueDate: formDate, 
+            category: 'Outros', // Categoria genérica do sistema
+            status: 'Pago', // Assume pago pois é retirada do caixa operacional
+            isRecurring: false,
+            paidMonths: []
+        });
     } else {
       if (isNaN(val)) return;
       if (modalType === 'expense') {
@@ -305,12 +333,13 @@ const Finance: React.FC<FinanceProps> = ({
     setIsRecurring(false);
     setEditingId(null);
     setFormDate(new Date().toISOString().split('T')[0]);
+    setOpFundCategory(DEFAULT_CATEGORIES[0]);
   };
 
   const handleEditFixed = (e: FixedExpense) => {
     setModalType('expense');
     setEditingId(e.id);
-    setFormDesc(e.description);
+    setFormDesc(cleanDescription(e.description));
     setFormValue(e.value.toString());
     setFormDate(e.dueDate);
     setIsRecurring(!!e.isRecurring);
@@ -413,8 +442,15 @@ const Finance: React.FC<FinanceProps> = ({
 
     filteredData.fixedExpenses.forEach((e: any) => {
       const isPaid = e.isRecurring ? e.paidMonths?.includes(currentMonthYear) : e.status === 'Pago';
+      // Limpa a descrição para exibir sem tags
+      const cleanDesc = cleanDescription(e.description);
+      
+      // Detecta se é compra de insumo operacional
+      const isOpSpend = e.description.includes('||_OP_SPEND_::');
+      const categoryLabel = isOpSpend ? 'Insumos (Caixa)' : e.category;
+
       if (isPaid) {
-        transactions.push({ id: `fe-${e.id}`, desc: e.description, val: e.value, type: 'out', date: e.dueDate, cat: e.category });
+        transactions.push({ id: `fe-${e.id}`, desc: cleanDesc, val: e.value, type: 'out', date: e.dueDate, cat: categoryLabel });
       }
     });
 
@@ -528,33 +564,23 @@ const Finance: React.FC<FinanceProps> = ({
   };
 
   const renderOperationalFund = () => {
-    // 1. Coletar e Somar todos os custos operacionais dos PROJETOS APROVADOS (Pagos ou não)
-    // Se quiser apenas dos pagos, filtrar projects.filter(p => p.isPaid).
-    // Vou usar TODOS os projetos aprovados pois o dinheiro "entra" no orçamento, mas você pode querer ver só o que já recebeu.
-    // Usaremos "Projetos Ativos + Pagos" pois representa o montante gerado.
-    
     const fundTotals: Record<string, number> = {};
+    const fundSpent: Record<string, number> = {};
     
     // Inicializa com as categorias padrão zeradas
-    const defaultCategories = [
-      'Parafuso', 'Bucha', 'Silicone', 'Cola de fita', 
-      'Energia', 'Manutenção de maquinas', 'Combustivel', 
-      'Produtos de limpeza', 'Ferramentas'
-    ];
-    defaultCategories.forEach(c => fundTotals[c] = 0);
+    DEFAULT_CATEGORIES.forEach(c => {
+       fundTotals[c] = 0;
+       fundSpent[c] = 0;
+    });
 
+    // 1. Calcular Entradas (Via Orçamentos)
     projects.forEach(project => {
-       // Tenta extrair da descrição (nosso hack de persistência)
        const opsMatch = (project.description || '').match(/\|\|_OPS_::(.*)/);
        if (opsMatch && opsMatch[1]) {
           try {
              const costs = JSON.parse(opsMatch[1]);
              if (Array.isArray(costs)) {
                 costs.forEach((c: {name: string, value: number}) => {
-                   // Considera apenas se o projeto está pago ou parcialmente pago proporcionalmente?
-                   // Simplificação: Se o projeto existe, o custo foi "cobrado". 
-                   // Se quiser "Recebido", multiplique pelo percentual pago.
-                   // Vamos assumir valor total cobrado nos orçamentos fechados.
                    if (fundTotals[c.name] !== undefined) {
                       fundTotals[c.name] += c.value;
                    } else {
@@ -562,37 +588,85 @@ const Finance: React.FC<FinanceProps> = ({
                    }
                 });
              }
-          } catch(e) { /* ignore parse error */ }
+          } catch(e) { /* ignore */ }
        }
+    });
+
+    // 2. Calcular Saídas (Via Fixed Expenses marcadas)
+    // Filtramos TODAS as despesas fixas (não apenas do mês selecionado) para ter o saldo real acumulado
+    fixedExpenses.forEach(e => {
+        const match = e.description.match(/\|\|_OP_SPEND_::(.*)/);
+        if (match && match[1]) {
+            const cat = match[1];
+            // Soma se estiver marcada como paga (ou pendente se quisermos ver o comprometido, vamos usar tudo registrado)
+            // Geralmente compra de insumo é a vista, então consideramos o valor
+            if (fundSpent[cat] !== undefined) {
+                fundSpent[cat] += e.value;
+            } else {
+                // Caso seja uma categoria antiga ou custom
+                fundSpent[cat] = e.value;
+            }
+        }
     });
 
     return (
       <div className="space-y-10 animate-fade-in">
-         <div className="bg-[#2D4739] p-10 rounded-[3rem] shadow-xl border border-white/5 relative overflow-hidden">
+         <div className="bg-[#2D4739] p-10 rounded-[3rem] shadow-xl border border-white/5 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
             <div className="absolute top-0 right-0 w-96 h-96 bg-[#6B8E23] opacity-20 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-            <h3 className="text-xl font-black text-[#FDFBE2] uppercase tracking-tighter relative z-10 flex items-center gap-3">
-               <Archive size={24} /> Caixa de Insumos & Operacional
-            </h3>
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mt-2 relative z-10 max-w-lg">
-               Valores acumulados cobrados em todos os orçamentos aprovados para cobrir custos fixos e insumos. Este é o valor que seus projetos "geraram" para pagar as contas da oficina.
-            </p>
+            <div className="relative z-10 flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                    <Archive size={24} className="text-[#FDFBE2]" />
+                    <h3 className="text-xl font-black text-[#FDFBE2] uppercase tracking-tighter">Caixa de Insumos & Operacional</h3>
+                </div>
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest max-w-lg">
+                   Valores acumulados cobrados em todos os orçamentos aprovados para cobrir custos fixos e insumos. Gerencie aqui as compras de reposição.
+                </p>
+            </div>
+            <div className="relative z-10">
+                <button 
+                    onClick={() => { resetForm(); setModalType('op-fund-spend'); setIsModalOpen(true); }}
+                    className="px-8 py-4 bg-[#6B8E23] text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:scale-105 transition-all flex items-center gap-3"
+                >
+                    <ShoppingCart size={18} /> Registrar Compra de Insumo
+                </button>
+            </div>
          </div>
 
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Object.entries(fundTotals).map(([name, value]) => (
-               <div key={name} className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-[#2D473911] flex flex-col justify-between hover:border-[#6B8E23] transition-all group">
-                  <div className="flex justify-between items-start mb-4">
-                     <span className="text-xs font-black uppercase tracking-widest text-[#2D473966]">{name}</span>
-                     <div className="p-2 bg-[#FDFBE2] text-[#6B8E23] rounded-xl group-hover:bg-[#6B8E23] group-hover:text-white transition-colors">
-                        <DollarSign size={16} />
-                     </div>
-                  </div>
-                  <p className="text-3xl font-black text-[#2D4739] tracking-tighter">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                  <div className="mt-4 pt-4 border-t border-[#2D473905]">
-                     <p className="text-[9px] font-bold text-[#2D473944] uppercase tracking-wide">Acumulado em Projetos</p>
-                  </div>
-               </div>
-            ))}
+            {Object.keys(fundTotals).map((name) => {
+               const totalIn = fundTotals[name] || 0;
+               const totalOut = fundSpent[name] || 0;
+               const balance = totalIn - totalOut;
+
+               return (
+                   <div key={name} className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-[#2D473911] flex flex-col justify-between hover:border-[#6B8E23] transition-all group">
+                      <div className="flex justify-between items-start mb-4">
+                         <span className="text-xs font-black uppercase tracking-widest text-[#2D473966]">{name}</span>
+                         <div className={`p-2 rounded-xl transition-colors ${balance < 0 ? 'bg-red-50 text-red-500' : 'bg-[#FDFBE2] text-[#6B8E23] group-hover:bg-[#6B8E23] group-hover:text-white'}`}>
+                            <DollarSign size={16} />
+                         </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                          <p className={`text-3xl font-black tracking-tighter ${balance < 0 ? 'text-red-500' : 'text-[#2D4739]'}`}>
+                              R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-[9px] font-bold text-[#2D473944] uppercase tracking-wide">Saldo Disponível</p>
+                      </div>
+
+                      <div className="mt-6 pt-4 border-t border-[#2D473905] grid grid-cols-2 gap-4">
+                         <div>
+                             <p className="text-[8px] font-black uppercase text-[#6B8E23] mb-0.5">Entradas</p>
+                             <p className="text-xs font-bold text-[#2D4739]">R$ {totalIn.toLocaleString('pt-BR')}</p>
+                         </div>
+                         <div>
+                             <p className="text-[8px] font-black uppercase text-red-400 mb-0.5">Gastos</p>
+                             <p className="text-xs font-bold text-[#2D4739]">R$ {totalOut.toLocaleString('pt-BR')}</p>
+                         </div>
+                      </div>
+                   </div>
+               );
+            })}
          </div>
       </div>
     );
@@ -778,12 +852,18 @@ const Finance: React.FC<FinanceProps> = ({
             const isPaidThisMonth = e.isRecurring 
               ? e.paidMonths?.includes(currentMonthYear)
               : e.status === 'Pago';
+            
+            // Não exibir compras de insumos aqui para não poluir, a menos que queira
+            // Se for insumo, mostramos de forma diferente ou filtramos
+            // Por enquanto, mostramos tudo mas com descrição limpa
+            const cleanDesc = cleanDescription(e.description);
+            const isOpSpend = e.description.includes('||_OP_SPEND_::');
 
             return (
               <div key={e.id} className={`p-8 rounded-[3rem] shadow-lg space-y-4 transition-all group flex flex-col justify-between border-2 ${isPaidThisMonth ? 'bg-[#6B8E2308] border-[#6B8E2322]' : 'bg-white border-[#2D473908] hover:border-red-200'}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${isPaidThisMonth ? 'bg-[#6B8E23] text-white' : 'bg-red-50 text-red-600'}`}>{e.category}</span>
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${isPaidThisMonth ? 'bg-[#6B8E23] text-white' : 'bg-red-50 text-red-600'}`}>{isOpSpend ? 'Insumo' : e.category}</span>
                     {e.isRecurring && (
                       <span className="bg-[#2D4739] text-[#FDFBE2] p-1.5 rounded-lg flex items-center gap-1 text-[8px] font-black uppercase">
                         <RotateCcw size={10} /> MENSAL
@@ -795,7 +875,7 @@ const Finance: React.FC<FinanceProps> = ({
                   </div>
                 </div>
                 <div>
-                  <h5 className={`text-lg font-black truncate uppercase leading-tight ${isPaidThisMonth ? 'text-[#2D473966] line-through' : 'text-[#2D4739]'}`}>{e.description}</h5>
+                  <h5 className={`text-lg font-black truncate uppercase leading-tight ${isPaidThisMonth ? 'text-[#2D473966] line-through' : 'text-[#2D4739]'}`}>{cleanDesc}</h5>
                   <p className="text-[10px] font-bold text-[#2D473944] uppercase tracking-widest mt-1 flex items-center gap-2">
                     <Calendar size={10} /> Venc: {new Date(e.dueDate).toLocaleDateString()}
                   </p>
@@ -890,6 +970,7 @@ const Finance: React.FC<FinanceProps> = ({
                     {modalType === 'revenue' && <TrendingUp size={24} />}
                     {modalType === 'stock' && <ShoppingBag size={24} />}
                     {modalType === 'project-revenue' && <DollarSign size={24} />}
+                    {modalType === 'op-fund-spend' && <ShoppingCart size={24} />}
                   </div>
                   <div>
                     <h3 className="text-xl font-black text-[#2D4739] uppercase tracking-tighter">
@@ -900,6 +981,7 @@ const Finance: React.FC<FinanceProps> = ({
                       {modalType === 'revenue' && 'Receita Extra'}
                       {modalType === 'stock' && 'Compra de Material'}
                       {modalType === 'project-revenue' && 'Ajuste de Projeto'}
+                      {modalType === 'op-fund-spend' && 'Retirada de Caixa Operacional'}
                     </p>
                   </div>
                </div>
@@ -910,7 +992,19 @@ const Finance: React.FC<FinanceProps> = ({
                
                {/* FORMULARIO DE DESPESA OU RECEITA OU ESTOQUE */}
                <div className="space-y-4">
-                  {/* Stock item registration fields removed as requested */}
+                  
+                  {modalType === 'op-fund-spend' && (
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Insumo / Categoria</label>
+                        <select 
+                           value={opFundCategory} 
+                           onChange={e => setOpFundCategory(e.target.value)} 
+                           className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] outline-none"
+                        >
+                           {DEFAULT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
+                     </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Descrição</label>
@@ -919,11 +1013,15 @@ const Finance: React.FC<FinanceProps> = ({
                       value={formDesc} 
                       onChange={e => setFormDesc(e.target.value)} 
                       className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] outline-none" 
-                      placeholder={modalType === 'stock' ? 'Obs: Compra de urgência' : 'Ex: Conta de Luz'}
+                      placeholder={
+                          modalType === 'stock' ? 'Obs: Compra de urgência' : 
+                          modalType === 'op-fund-spend' ? 'Ex: 10 caixas de parafuso 4x40' : 
+                          'Ex: Conta de Luz'
+                      }
                     />
                   </div>
 
-                  {(modalType === 'expense' || modalType === 'revenue' || modalType === 'stock') && (
+                  {(modalType === 'expense' || modalType === 'revenue' || modalType === 'stock' || modalType === 'op-fund-spend') && (
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Valor (R$)</label>
                       <input 
@@ -943,10 +1041,10 @@ const Finance: React.FC<FinanceProps> = ({
                      </div>
                   )}
 
-                  {(modalType === 'expense' || modalType === 'revenue' || modalType === 'stock') && (
+                  {(modalType === 'expense' || modalType === 'revenue' || modalType === 'stock' || modalType === 'op-fund-spend') && (
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">
-                        {modalType === 'revenue' ? 'Data do Recebimento' : 'Data de Vencimento'}
+                        {modalType === 'revenue' ? 'Data do Recebimento' : 'Data de Vencimento / Compra'}
                       </label>
                       <div className="relative group">
                           <input 
