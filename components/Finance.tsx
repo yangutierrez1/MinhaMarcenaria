@@ -7,7 +7,7 @@ import {
   Banknote, Receipt, Truck, Calendar,
   ChevronLeft, ChevronRight, ShoppingBag, Search, Tag, ArrowDownRight,
   Check, Clock, Wallet, History, ArrowUpRight, Layers, RotateCcw,
-  Edit2, FileText, LayoutDashboard, Landmark
+  Edit2, FileText, LayoutDashboard, Landmark, Archive
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip
@@ -68,7 +68,7 @@ const Finance: React.FC<FinanceProps> = ({
   onToggleDebtStatus, onUpdateDebt, onAddDebt, onDeleteDebt, onAddManualRevenue, 
   onDeleteManualRevenue, onUpdateProject, onNavigate, monthlyGoal, setMonthlyGoal
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'receivables' | 'expenses' | 'stock-entry' | 'history'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'receivables' | 'expenses' | 'operational-fund' | 'history'>('overview');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'expense' | 'revenue' | 'stock' | 'project-revenue'>('expense');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -527,6 +527,77 @@ const Finance: React.FC<FinanceProps> = ({
     );
   };
 
+  const renderOperationalFund = () => {
+    // 1. Coletar e Somar todos os custos operacionais dos PROJETOS APROVADOS (Pagos ou não)
+    // Se quiser apenas dos pagos, filtrar projects.filter(p => p.isPaid).
+    // Vou usar TODOS os projetos aprovados pois o dinheiro "entra" no orçamento, mas você pode querer ver só o que já recebeu.
+    // Usaremos "Projetos Ativos + Pagos" pois representa o montante gerado.
+    
+    const fundTotals: Record<string, number> = {};
+    
+    // Inicializa com as categorias padrão zeradas
+    const defaultCategories = [
+      'Parafuso', 'Bucha', 'Silicone', 'Cola de fita', 
+      'Energia', 'Manutenção de maquinas', 'Combustivel', 
+      'Produtos de limpeza', 'Ferramentas'
+    ];
+    defaultCategories.forEach(c => fundTotals[c] = 0);
+
+    projects.forEach(project => {
+       // Tenta extrair da descrição (nosso hack de persistência)
+       const opsMatch = (project.description || '').match(/\|\|_OPS_::(.*)/);
+       if (opsMatch && opsMatch[1]) {
+          try {
+             const costs = JSON.parse(opsMatch[1]);
+             if (Array.isArray(costs)) {
+                costs.forEach((c: {name: string, value: number}) => {
+                   // Considera apenas se o projeto está pago ou parcialmente pago proporcionalmente?
+                   // Simplificação: Se o projeto existe, o custo foi "cobrado". 
+                   // Se quiser "Recebido", multiplique pelo percentual pago.
+                   // Vamos assumir valor total cobrado nos orçamentos fechados.
+                   if (fundTotals[c.name] !== undefined) {
+                      fundTotals[c.name] += c.value;
+                   } else {
+                      fundTotals[c.name] = c.value;
+                   }
+                });
+             }
+          } catch(e) { /* ignore parse error */ }
+       }
+    });
+
+    return (
+      <div className="space-y-10 animate-fade-in">
+         <div className="bg-[#2D4739] p-10 rounded-[3rem] shadow-xl border border-white/5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-[#6B8E23] opacity-20 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+            <h3 className="text-xl font-black text-[#FDFBE2] uppercase tracking-tighter relative z-10 flex items-center gap-3">
+               <Archive size={24} /> Caixa de Insumos & Operacional
+            </h3>
+            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mt-2 relative z-10 max-w-lg">
+               Valores acumulados cobrados em todos os orçamentos aprovados para cobrir custos fixos e insumos. Este é o valor que seus projetos "geraram" para pagar as contas da oficina.
+            </p>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.entries(fundTotals).map(([name, value]) => (
+               <div key={name} className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-[#2D473911] flex flex-col justify-between hover:border-[#6B8E23] transition-all group">
+                  <div className="flex justify-between items-start mb-4">
+                     <span className="text-xs font-black uppercase tracking-widest text-[#2D473966]">{name}</span>
+                     <div className="p-2 bg-[#FDFBE2] text-[#6B8E23] rounded-xl group-hover:bg-[#6B8E23] group-hover:text-white transition-colors">
+                        <DollarSign size={16} />
+                     </div>
+                  </div>
+                  <p className="text-3xl font-black text-[#2D4739] tracking-tighter">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  <div className="mt-4 pt-4 border-t border-[#2D473905]">
+                     <p className="text-[9px] font-bold text-[#2D473944] uppercase tracking-wide">Acumulado em Projetos</p>
+                  </div>
+               </div>
+            ))}
+         </div>
+      </div>
+    );
+  };
+
   const renderReceivables = () => {
     const relevantProjects = projects.filter(p => {
        if (!p.isPaid) return true;
@@ -781,6 +852,7 @@ const Finance: React.FC<FinanceProps> = ({
           <SubTabBtn active={activeSubTab === 'overview'} label="Visão Geral" onClick={() => setActiveSubTab('overview')} icon={<LayoutDashboard size={14} />} />
           <SubTabBtn active={activeSubTab === 'receivables'} label="Entradas" onClick={() => setActiveSubTab('receivables')} icon={<TrendingUp size={14} />} />
           <SubTabBtn active={activeSubTab === 'expenses'} label="Saídas" onClick={() => setActiveSubTab('expenses')} icon={<TrendingDown size={14} />} />
+          <SubTabBtn active={activeSubTab === 'operational-fund'} label="Caixa Operacional" onClick={() => setActiveSubTab('operational-fund')} icon={<Archive size={14} />} />
           <SubTabBtn active={activeSubTab === 'history'} label="Extrato" onClick={() => setActiveSubTab('history')} icon={<History size={14} />} />
         </div>
 
@@ -804,6 +876,7 @@ const Finance: React.FC<FinanceProps> = ({
       {activeSubTab === 'overview' && renderOverview()}
       {activeSubTab === 'receivables' && renderReceivables()}
       {activeSubTab === 'expenses' && renderExpenses()}
+      {activeSubTab === 'operational-fund' && renderOperationalFund()}
       {activeSubTab === 'history' && renderHistory()}
       
       {/* Universal Finance Modal */}

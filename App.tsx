@@ -645,17 +645,28 @@ const App: React.FC = () => {
   // --- BUDGETS / APPROVAL HANDLERS ---
   const handleApproveBudget = async (budgetData: any) => {
     try {
+      // Separa subtasks (que existem em Project) e operationalCosts (novo)
+      // Para evitar erro de coluna no banco, vamos "embutir" os custos na descrição
+      // já que não podemos criar colunas agora.
+      const { subtasks, operationalCosts, ...budgetDataForDb } = budgetData;
+      
+      let description = (budgetData.environments || []).map((e: any) => e.type).join(', ') || 'Projeto Personalizado';
+      
+      // Persistir custos operacionais dentro da descrição de forma oculta para recuperação futura
+      if (operationalCosts) {
+         description += ` ||_OPS_::${JSON.stringify(operationalCosts)}`;
+      }
+
       const newProject: Project = {
         id: Math.random().toString(36).substr(2, 9),
         clientId: budgetData.clientId,
         name: budgetData.title,
-        // Proteção contra 'environments' indefinido para evitar erro no .map().join()
-        description: (budgetData.environments || []).map((e: any) => e.type).join(', ') || 'Projeto Personalizado',
+        description: description,
         status: 'Preparação',
         priority: 'Média',
         deadline: budgetData.deadline,
         materials: budgetData.materials || [],
-        subtasks: budgetData.subtasks || [],
+        subtasks: subtasks || [],
         value: budgetData.finalPrice,
         isPaid: false,
         isAdvancePaid: false,
@@ -683,8 +694,14 @@ const App: React.FC = () => {
         setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, status: 'Aprovado' } : b));
         await api.budgets.update(budgetData.id, { status: 'Aprovado' });
       } else {
+        // Criar novo orçamento aprovado
+        // Também embutimos os dados na descrição do orçamento para consistência
+        const budgetDescForDb = description; // Reutiliza a descrição com os dados ocultos
+        
         const newBudget: Budget = {
-          ...budgetData,
+          ...budgetDataForDb, // Usa versão limpa sem subtasks/ops
+          // @ts-ignore - Forçando description no budget se o tipo permitir ou ignorando se não
+          description: budgetDescForDb, 
           id: Math.random().toString(36).substr(2, 9),
           status: 'Aprovado',
           createdAt: new Date().toISOString(),
@@ -701,13 +718,24 @@ const App: React.FC = () => {
   };
 
   const handleSaveBudget = async (budgetData: any) => {
+    // Separa dados extras que não existem na tabela budgets
+    const { subtasks, operationalCosts, ...cleanBudget } = budgetData;
+    
+    // Embutir custos na descrição se houver (para persistência sem alterar schema)
+    // Tenta recuperar descrição existente ou gerar uma
+    let description = (cleanBudget.environments || []).map((e: any) => e.type).join(', ') || '';
+    if (operationalCosts) {
+       description += ` ||_OPS_::${JSON.stringify(operationalCosts)}`;
+    }
+    const budgetPayload = { ...cleanBudget, description };
+
     if (budgetData.id) {
-      const updates = { ...budgetData, status: 'Pendente' };
+      const updates = { ...budgetPayload, status: 'Pendente' };
       setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, ...updates } : b));
       await api.budgets.update(budgetData.id, updates);
     } else {
       const newBudget: Budget = {
-        ...budgetData,
+        ...budgetPayload,
         id: Math.random().toString(36).substr(2, 9),
         status: 'Pendente',
         createdAt: new Date().toISOString(),

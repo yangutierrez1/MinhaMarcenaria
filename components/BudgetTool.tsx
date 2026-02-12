@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Material, Client, Budget, TaskStatus, ProjectSubtask, BudgetEnvironmentInfo } from '../types';
-import { Calculator, Plus, Trash2, CheckCircle2, Clock, Check, ListChecks, Hammer, Layout, X, Save, ArrowRight, AlertTriangle, ChevronDown, Percent, Coins, TrendingUp, Package, MoreVertical, Edit2, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
+import { Calculator, Plus, Trash2, CheckCircle2, Clock, Check, ListChecks, Hammer, Layout, X, Save, ArrowRight, AlertTriangle, ChevronDown, Percent, Coins, TrendingUp, Package, MoreVertical, Edit2, Calendar as CalendarIcon, Sparkles, Zap } from 'lucide-react';
 
 interface BudgetToolProps {
   materials: Material[];
@@ -10,6 +10,18 @@ interface BudgetToolProps {
   onSavePending: (data: any) => void;
   onDeleteBudget: (id: string) => void;
 }
+
+const DEFAULT_OVERHEADS = [
+  { name: 'Parafuso', value: 10 },
+  { name: 'Bucha', value: 12 },
+  { name: 'Silicone', value: 15 },
+  { name: 'Cola de fita', value: 15 },
+  { name: 'Energia', value: 28 },
+  { name: 'Manutenção de maquinas', value: 40 },
+  { name: 'Combustivel', value: 50 },
+  { name: 'Produtos de limpeza', value: 15 },
+  { name: 'Ferramentas', value: 25 },
+];
 
 const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, onApprove, onSavePending, onDeleteBudget }) => {
   const [selectedClient, setSelectedClient] = useState('');
@@ -28,6 +40,9 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
   const [newTaskInput, setNewTaskInput] = useState('');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   
+  // State for Operational Costs
+  const [operationalCosts, setOperationalCosts] = useState<{name: string, value: number}[]>(DEFAULT_OVERHEADS);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +84,11 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     }, 0);
   }, [selectedMaterials, materials]);
 
-  const totalBaseCost = materialsCost + laborCost;
+  const overheadTotal = useMemo(() => {
+    return operationalCosts.reduce((sum, item) => sum + item.value, 0);
+  }, [operationalCosts]);
+
+  const totalBaseCost = materialsCost + laborCost + overheadTotal;
   const finalPrice = totalBaseCost * (1 + profitMargin / 100);
   const estimatedProfit = finalPrice - totalBaseCost;
   const pendingBudgetsList = useMemo(() => budgets.filter(b => b.status === 'Pendente'), [budgets]);
@@ -96,6 +115,7 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     setLaborInput('0,00');
     setProfitMargin(30);
     setEditingBudgetId(null);
+    setOperationalCosts(DEFAULT_OVERHEADS);
   };
 
   const handleAddEnvironment = () => setAddedEnvironments(prev => [...prev, { type: tempEnvType, description: '' }]);
@@ -146,7 +166,8 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
       profitMargin,
       totalCost: totalBaseCost,
       subtasks: getAllSubtasks(),
-      status: 'Pendente' as const
+      status: 'Pendente' as const,
+      operationalCosts // Passando os custos operacionais
     };
     onSavePending(payload);
     resetForm();
@@ -194,7 +215,8 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
       travelCost: 0,
       profitMargin,
       totalCost: totalBaseCost,
-      subtasks: finalSubtasks
+      subtasks: finalSubtasks,
+      operationalCosts // Passando os custos operacionais
     };
     
     onApprove(payload);
@@ -213,6 +235,27 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     setLaborCost(budget.laborCost);
     setLaborInput(formatCurrency(budget.laborCost));
     setProfitMargin(budget.profitMargin);
+    
+    // Tenta recuperar os custos operacionais da descrição (formato hack: ||_OPS_::JSON) ou usa o padrão
+    // @ts-ignore
+    if (budget.operationalCosts) {
+       // @ts-ignore
+       setOperationalCosts(budget.operationalCosts);
+    } else {
+       // Fallback: tentar extrair da descrição se estiver salvo lá
+       // @ts-ignore
+       const opsMatch = (budget.description || '').match(/\|\|_OPS_::(.*)/);
+       if (opsMatch && opsMatch[1]) {
+          try {
+             setOperationalCosts(JSON.parse(opsMatch[1]));
+          } catch(e) {
+             setOperationalCosts(DEFAULT_OVERHEADS);
+          }
+       } else {
+          setOperationalCosts(DEFAULT_OVERHEADS);
+       }
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -278,6 +321,37 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
                 <option value="">Selecione um cliente cadastrado...</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+            </div>
+
+            {/* SEÇÃO DE CUSTOS OPERACIONAIS (INSUMOS) */}
+            <div className="bg-[#FDFBE2]/30 p-6 rounded-[2rem] border border-[#2D473908] space-y-4">
+               <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black text-[#2D473966] uppercase tracking-widest flex items-center gap-2">
+                     <Zap size={14} /> Insumos & Custos Operacionais (Padrão)
+                  </label>
+                  <span className="text-xs font-black text-[#2D4739]">Total: R$ {overheadTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+               </div>
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {operationalCosts.map((item, idx) => (
+                     <div key={idx} className="bg-white p-3 rounded-xl border border-[#2D473905] flex items-center justify-between shadow-sm">
+                        <span className="text-[9px] font-bold text-[#2D4739AA] uppercase tracking-wide truncate mr-2">{item.name}</span>
+                        <div className="flex items-center gap-1">
+                           <span className="text-[8px] text-[#2D473944] font-bold">R$</span>
+                           <input 
+                              type="number" 
+                              value={item.value} 
+                              onChange={(e) => {
+                                 const val = parseFloat(e.target.value) || 0;
+                                 const newCosts = [...operationalCosts];
+                                 newCosts[idx].value = val;
+                                 setOperationalCosts(newCosts);
+                              }}
+                              className="w-12 text-right font-black text-[#2D4739] text-xs outline-none bg-transparent border-b border-transparent focus:border-[#6B8E23] transition-all"
+                           />
+                        </div>
+                     </div>
+                  ))}
+               </div>
             </div>
 
             <div className="space-y-6 pt-4">

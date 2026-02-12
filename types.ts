@@ -71,6 +71,7 @@ export interface Project {
   advanceValue?: number;
   paymentMethod?: 'Pix' | 'Dinheiro' | 'Cartão' | 'Transferência';
   paymentDate?: string;
+  operationalCosts?: { name: string; value: number }[];
 }
 
 export interface BudgetEnvironmentInfo {
@@ -92,6 +93,7 @@ export interface Budget {
   totalCost: number;
   finalPrice: number;
   createdAt: string;
+  operationalCosts?: { name: string; value: number }[];
 }
 
 export interface FixedExpense {
