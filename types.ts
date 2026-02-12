@@ -73,7 +73,8 @@ export interface Project {
   paymentDate?: string;
   operationalCosts?: { name: string; value: number }[];
   laborCost?: number; // Custo de mão de obra planejado
-  customMaterialCost?: number; // Custo de material ajustado manualmente (com desconto, etc)
+  customMaterialCost?: number; // Deprecated: Mantido para compatibilidade, mas preferir customMaterialCosts
+  customMaterialCosts?: Record<string, number>; // Map: materialId -> custo total real ajustado
 }
 
 export interface BudgetEnvironmentInfo {
