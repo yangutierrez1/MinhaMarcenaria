@@ -158,6 +158,30 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
        return;
     }
     
+    // 1. Gera tarefas automáticas de corte para MDFs
+    const automatedCuttingTasks: ProjectSubtask[] = [];
+    
+    selectedMaterials.forEach(item => {
+        const mat = materials.find(m => m.id === item.id);
+        // Verifica se é MDF / Chapa baseado na categoria ou unidade
+        if (mat && (mat.category === 'MDF / Chapas' || mat.unit === 'Chapa')) {
+            // Arredonda para cima (ex: 2.5 chapas viram 3 tarefas de corte)
+            const sheetCount = Math.ceil(item.qty); 
+            
+            for (let i = 1; i <= sheetCount; i++) {
+                automatedCuttingTasks.push({
+                    title: `Corte chapa "${mat.name}" ${i}`,
+                    completed: false,
+                    phase: 'Corte'
+                });
+            }
+        }
+    });
+
+    // 2. Combina tarefas manuais com as automáticas
+    const manualSubtasks = getAllSubtasks();
+    const finalSubtasks = [...manualSubtasks, ...automatedCuttingTasks];
+
     const payload = {
       id: editingBudgetId,
       clientId: selectedClient,
@@ -170,7 +194,7 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
       travelCost: 0,
       profitMargin,
       totalCost: totalBaseCost,
-      subtasks: getAllSubtasks()
+      subtasks: finalSubtasks
     };
     
     onApprove(payload);
