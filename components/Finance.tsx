@@ -7,12 +7,16 @@ import {
   Banknote, Receipt, Truck, Calendar,
   ChevronLeft, ChevronRight, ShoppingBag, Search, Tag, ArrowDownRight,
   Check, Clock, Wallet, History, ArrowUpRight, Layers, RotateCcw,
-  Edit2, FileText, LayoutDashboard, Landmark, Archive, ShoppingCart
+  Edit2, FileText, LayoutDashboard, Landmark, Archive, ShoppingCart,
+  PieChart as PieIcon, Calculator, Coins
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip, PieChart, Pie, Cell
 } from 'recharts';
 import ConfirmDeleteModal from './ui/ConfirmDeleteModal';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import { formatBRL, parseCurrencyInput } from '../utils/format';
 
 interface FinanceProps {
   projects: Project[];
@@ -82,6 +86,11 @@ const Finance: React.FC<FinanceProps> = ({
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   
+  // Profit Analysis Modal State
+  const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
+  const [selectedProjectForProfit, setSelectedProjectForProfit] = useState<Project | null>(null);
+  const [tempMaterialCost, setTempMaterialCost] = useState('0,00');
+  
   // Confirmation Modal State
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -111,20 +120,60 @@ const Finance: React.FC<FinanceProps> = ({
   // Operational Fund Spend State
   const [opFundCategory, setOpFundCategory] = useState(DEFAULT_CATEGORIES[0]);
   
-  // Stock Entry States (Kept for compatibility if needed elsewhere, but mostly unused in this modal now)
-  const [isNewMaterial, setIsNewMaterial] = useState(true);
-  const [stockItemName, setStockItemName] = useState('');
-  const [stockSelectedMaterialId, setStockSelectedMaterialId] = useState('');
-  const [stockQty, setStockQty] = useState('');
-  const [stockUnitPrice, setStockUnitPrice] = useState('');
-  const [stockCategory, setStockCategory] = useState('Madeira');
-
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   const handlePrevMonth = () => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1));
   const handleNextMonth = () => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1));
 
   const currentMonthYear = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
+
+  // --- CALCULATION HELPERS ---
+  const calculateProjectFinancials = (project: Project) => {
+    // 1. Calculated Material Cost (Stock Price * Qty)
+    const calculatedMatCost = project.materials.reduce((acc, pm) => {
+        const mat = materials.find(m => m.id === pm.materialId);
+        return acc + (mat ? mat.price * pm.quantity : 0);
+    }, 0);
+
+    // 2. Final Material Cost (Use custom if set, otherwise calculated)
+    const materialCost = project.customMaterialCost !== undefined ? project.customMaterialCost : calculatedMatCost;
+
+    // 3. Operational Costs (Sum of ops array)
+    const operationalCost = (project.operationalCosts || []).reduce((acc, op) => acc + op.value, 0);
+
+    // 4. Labor Cost (Saved on project creation or 0)
+    const laborCost = project.laborCost || 0;
+
+    const totalCost = materialCost + operationalCost + laborCost;
+    const revenue = project.value;
+    const profit = revenue - totalCost;
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+
+    return {
+        revenue,
+        materialCost,
+        calculatedMatCost, // Keep for reference
+        operationalCost,
+        laborCost,
+        totalCost,
+        profit,
+        margin
+    };
+  };
+
+  const handleOpenProfitModal = (project: Project) => {
+      setSelectedProjectForProfit(project);
+      const financials = calculateProjectFinancials(project);
+      setTempMaterialCost(formatBRL(financials.materialCost));
+      setIsProfitModalOpen(true);
+  };
+
+  const handleSaveMaterialCostAdjustment = () => {
+      if (!selectedProjectForProfit) return;
+      const newCost = parseCurrencyInput(tempMaterialCost);
+      onUpdateProject(selectedProjectForProfit.id, { customMaterialCost: newCost });
+      setIsProfitModalOpen(false);
+  };
 
   // Cálculo de Totais Acumulados (Todo o Período)
   const allTimeTotals = useMemo(() => {
@@ -327,13 +376,10 @@ const Finance: React.FC<FinanceProps> = ({
 
   const resetForm = () => {
     setFormDesc(''); setFormValue(''); setFormClient(''); setFormSupplier('');
-    setStockItemName(''); setStockSelectedMaterialId(''); setStockQty(''); setStockUnitPrice('');
-    setStockCategory('Madeira');
-    setIsNewMaterial(true);
+    setOpFundCategory(DEFAULT_CATEGORIES[0]);
     setIsRecurring(false);
     setEditingId(null);
     setFormDate(new Date().toISOString().split('T')[0]);
-    setOpFundCategory(DEFAULT_CATEGORIES[0]);
   };
 
   const handleEditFixed = (e: FixedExpense) => {
@@ -745,7 +791,11 @@ const Finance: React.FC<FinanceProps> = ({
               </thead>
               <tbody className="divide-y divide-[#2D473905]">
                 {allReceivables.map(item => (
-                  <tr key={item.id} className="group hover:bg-[#FDFBE2]/30 transition-all">
+                  <tr key={item.id} className="group hover:bg-[#FDFBE2]/30 transition-all cursor-pointer" onClick={() => {
+                      if (item.type === 'Projeto' && item.originalProject) {
+                          handleOpenProfitModal(item.originalProject);
+                      }
+                  }}>
                     <td className="py-6 font-bold text-xs text-[#2D473966]">{new Date(item.date).toLocaleDateString()}</td>
                     <td className="py-6">
                       <p className="text-sm font-black text-[#2D4739]">{item.description}</p>
@@ -759,7 +809,8 @@ const Finance: React.FC<FinanceProps> = ({
                          </span>
                          {item.type === 'Projeto' && item.status !== 'Pago' && (
                             <button 
-                              onClick={() => {
+                              onClick={(e) => {
+                                 e.stopPropagation();
                                  setConfirmConfig({
                                     isOpen: true,
                                     title: 'Confirmar Recebimento?',
@@ -784,19 +835,35 @@ const Finance: React.FC<FinanceProps> = ({
                       <div className="flex justify-end items-center gap-3">
                         <span>R$ {item.value.toLocaleString('pt-BR')}</span>
                         {item.type === 'Projeto' && (
-                          <button 
-                            onClick={() => handleEditProjectRevenue(
-                              // @ts-ignore
-                              item.originalProject?.id || item.id, 
-                              // @ts-ignore
-                              item.originalProject?.value || item.value,
-                              item.description
-                            )} 
-                            className="p-2 text-[#2D473944] hover:text-[#6B8E23] transition-all bg-white rounded-lg shadow-sm border border-[#2D473908]"
-                            title="Editar valor total do projeto"
-                          >
-                            <Edit2 size={14} />
-                          </button>
+                          <div className="flex gap-2">
+                             <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    // @ts-ignore
+                                    handleOpenProfitModal(item.originalProject);
+                                }}
+                                className="p-2 bg-[#FDFBE2] text-[#2D4739] hover:bg-[#6B8E23] hover:text-white transition-all rounded-lg shadow-sm border border-[#2D473908]"
+                                title="Ver Lucro e Custos"
+                             >
+                                <PieIcon size={14} />
+                             </button>
+                             <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditProjectRevenue(
+                                    // @ts-ignore
+                                    item.originalProject?.id || item.id, 
+                                    // @ts-ignore
+                                    item.originalProject?.value || item.value,
+                                    item.description
+                                  )
+                                }} 
+                                className="p-2 text-[#2D473944] hover:text-[#6B8E23] transition-all bg-white rounded-lg shadow-sm border border-[#2D473908]"
+                                title="Editar valor total do projeto"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -1103,6 +1170,103 @@ const Finance: React.FC<FinanceProps> = ({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* PROFIT ANALYSIS MODAL */}
+      {isProfitModalOpen && selectedProjectForProfit && (
+         <Modal
+            isOpen={isProfitModalOpen}
+            onClose={() => setIsProfitModalOpen(false)}
+            title="Análise de Lucratividade"
+            subtitle={selectedProjectForProfit.name}
+            icon={<PieIcon size={24} />}
+            footer={
+               <div className="flex justify-end gap-4 w-full">
+                  <Button variant="ghost" onClick={() => setIsProfitModalOpen(false)}>Fechar</Button>
+               </div>
+            }
+         >
+            {(() => {
+               const financials = calculateProjectFinancials(selectedProjectForProfit);
+               
+               return (
+                  <div className="space-y-8">
+                     {/* Summary */}
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-4 rounded-2xl border border-[#2D473911]">
+                           <p className="text-[9px] font-black text-[#2D473966] uppercase tracking-widest">Receita Total</p>
+                           <p className="text-xl font-black text-[#2D4739] tracking-tighter">R$ {formatBRL(financials.revenue)}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-[#2D473911]">
+                           <p className="text-[9px] font-black text-[#2D473966] uppercase tracking-widest">Custo Total</p>
+                           <p className="text-xl font-black text-red-500 tracking-tighter">R$ {formatBRL(financials.totalCost)}</p>
+                        </div>
+                        <div className={`p-4 rounded-2xl border ${financials.profit >= 0 ? 'bg-[#6B8E2311] border-[#6B8E2344]' : 'bg-red-50 border-red-200'}`}>
+                           <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Lucro Líquido</p>
+                           <p className={`text-xl font-black tracking-tighter ${financials.profit >= 0 ? 'text-[#6B8E23]' : 'text-red-500'}`}>
+                              R$ {formatBRL(financials.profit)}
+                           </p>
+                        </div>
+                        <div className={`p-4 rounded-2xl border ${financials.margin >= 20 ? 'bg-[#6B8E23] text-white' : 'bg-[#2D4739] text-[#FDFBE2]'}`}>
+                           <p className="text-[9px] font-black uppercase tracking-widest opacity-80">Margem</p>
+                           <p className="text-xl font-black tracking-tighter">{financials.margin.toFixed(1)}%</p>
+                        </div>
+                     </div>
+
+                     {/* Detail Breakdown */}
+                     <div className="bg-white p-6 rounded-[2.5rem] border border-[#2D473911] space-y-6">
+                        <h4 className="text-xs font-black text-[#2D4739] uppercase tracking-[0.2em] flex items-center gap-2">
+                           <Calculator size={14} /> Detalhamento de Custos
+                        </h4>
+                        
+                        {/* Cost Adjuster */}
+                        <div className="space-y-4">
+                           <div className="flex items-center justify-between p-4 bg-[#FDFBE2] rounded-2xl border border-[#2D473908]">
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase tracking-widest text-[#2D473966]">Materiais (Real)</p>
+                                 <p className="text-xs text-[#2D4739] font-bold">Original Calculado: R$ {formatBRL(financials.calculatedMatCost)}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                 <span className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Ajustar:</span>
+                                 <div className="relative w-32">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#2D473966]">R$</span>
+                                    <input 
+                                       type="text" 
+                                       value={tempMaterialCost}
+                                       onChange={(e) => {
+                                          const val = parseCurrencyInput(e.target.value);
+                                          setTempMaterialCost(formatBRL(val));
+                                       }}
+                                       className="w-full pl-8 pr-3 py-2 bg-white rounded-xl border border-[#2D473911] text-xs font-black text-[#2D4739] outline-none focus:border-[#6B8E23]"
+                                    />
+                                 </div>
+                                 <button 
+                                    onClick={handleSaveMaterialCostAdjustment}
+                                    className="p-2 bg-[#6B8E23] text-white rounded-xl hover:scale-105 transition-all shadow-md"
+                                    title="Salvar Custo Real"
+                                 >
+                                    <Save size={14} />
+                                 </button>
+                              </div>
+                           </div>
+
+                           {/* Read Only Costs */}
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="p-4 bg-white rounded-2xl border border-[#2D473908] flex justify-between items-center">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#2D473966]">Operacional</span>
+                                 <span className="text-sm font-black text-[#2D4739]">R$ {formatBRL(financials.operationalCost)}</span>
+                              </div>
+                              <div className="p-4 bg-white rounded-2xl border border-[#2D473908] flex justify-between items-center">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#2D473966]">Mão de Obra</span>
+                                 <span className="text-sm font-black text-[#2D4739]">R$ {formatBRL(financials.laborCost)}</span>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               );
+            })()}
+         </Modal>
       )}
 
       {/* Confirmation Modal */}

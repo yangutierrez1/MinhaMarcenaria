@@ -23,6 +23,7 @@ const MATERIAL_TYPES = [
   'Acessórios',
   'Ferramentas',
   'Vidros / Espelhos',
+  'Acrílico',
   'Elétrica / LED',
   'Outros'
 ];
@@ -31,11 +32,12 @@ const UNITS_BY_CATEGORY: Record<string, string> = {
   'MDF / Chapas': 'Chapa',
   'Madeira Maciça': 'm³',
   'Ferragens': 'Unidade',
-  'Fitas de Borda': 'Rolo',
+  'Fitas de Borda': 'Metro',
   'Químicos / Colas': 'Lata',
   'Acessórios': 'Unidade',
   'Ferramentas': 'Unidade',
   'Vidros / Espelhos': 'm²',
+  'Acrílico': 'Chapa',
   'Elétrica / LED': 'Unidade',
   'Outros': 'Unidade'
 };
@@ -419,7 +421,7 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
                 <div className="flex justify-end">
                    <button 
                       onClick={handleAddToBatch}
-                      className="px-6 py-3 bg-[#FDFBE2] text-[#2D4739] rounded-xl text-[10px] font-black uppercase tracking-widest border border-[#2D473911] hover:bg-[#2D4739] hover:text-[#FDFBE2] transition-all flex items-center gap-2"
+                      className="px-6 py-3 bg-[#FDFBE2] text-[#2D4739] rounded-xl text-[10px] font-black uppercase tracking-widest border border border-[#2D473911] hover:bg-[#2D4739] hover:text-[#FDFBE2] transition-all flex items-center gap-2"
                    >
                       <ListPlus size={16} /> Adicionar à Lista (+1)
                    </button>

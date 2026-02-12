@@ -72,6 +72,8 @@ export interface Project {
   paymentMethod?: 'Pix' | 'Dinheiro' | 'Cartão' | 'Transferência';
   paymentDate?: string;
   operationalCosts?: { name: string; value: number }[];
+  laborCost?: number; // Custo de mão de obra planejado
+  customMaterialCost?: number; // Custo de material ajustado manualmente (com desconto, etc)
 }
 
 export interface BudgetEnvironmentInfo {

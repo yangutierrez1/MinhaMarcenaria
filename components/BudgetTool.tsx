@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Material, Client, Budget, TaskStatus, ProjectSubtask, BudgetEnvironmentInfo } from '../types';
-import { Calculator, Plus, Trash2, CheckCircle2, Clock, Check, ListChecks, Hammer, Layout, X, Save, ArrowRight, AlertTriangle, ChevronDown, Percent, Coins, TrendingUp, Package, MoreVertical, Edit2, Calendar as CalendarIcon, Sparkles, Zap } from 'lucide-react';
+import { Calculator, Plus, Trash2, CheckCircle2, Clock, Check, ListChecks, Hammer, Layout, X, Save, ArrowRight, AlertTriangle, ChevronDown, Percent, Coins, TrendingUp, Package, MoreVertical, Edit2, Calendar as CalendarIcon, Sparkles, Zap, DollarSign } from 'lucide-react';
 
 interface BudgetToolProps {
   materials: Material[];
@@ -35,7 +35,11 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
   const [tempEnvType, setTempEnvType] = useState('Cozinha');
   const [selectedMaterials, setSelectedMaterials] = useState<{ id: string, qty: number }[]>([]);
   const [laborCost, setLaborCost] = useState(0);
-  const [profitMargin, setProfitMargin] = useState(30);
+  
+  // Alterado: profitMargin removido do state, finalPrice adicionado ao state
+  const [manualFinalPrice, setManualFinalPrice] = useState(0); 
+  const [finalPriceInput, setFinalPriceInput] = useState('0,00');
+
   const [activeConfigPhase, setActiveConfigPhase] = useState<TaskStatus>('Preparação');
   const [newTaskInput, setNewTaskInput] = useState('');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -88,21 +92,26 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     return operationalCosts.reduce((sum, item) => sum + item.value, 0);
   }, [operationalCosts]);
 
+  // Cálculos Derivados
   const totalBaseCost = materialsCost + laborCost + overheadTotal;
-  const finalPrice = totalBaseCost * (1 + profitMargin / 100);
-  const estimatedProfit = finalPrice - totalBaseCost;
+  
+  // Lucro e Margem calculados com base no Preço Manual definido pelo usuário
+  const estimatedProfit = manualFinalPrice - totalBaseCost;
+  const currentMargin = totalBaseCost > 0 ? ((estimatedProfit / totalBaseCost) * 100) : 0;
+
   const pendingBudgetsList = useMemo(() => budgets.filter(b => b.status === 'Pendente'), [budgets]);
 
-  // Função para cálculo reverso da margem ao editar o preço final
-  const handleManualPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handler para input manual do preço final
+  const handleFinalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
-    const newPrice = Number(rawValue) / 100;
-
-    if (totalBaseCost > 0) {
-      // Cálculo Reverso: Margem = ((Preço / Custo) - 1) * 100
-      const newMargin = ((newPrice / totalBaseCost) - 1) * 100;
-      setProfitMargin(newMargin);
+    if (rawValue === '') {
+        setFinalPriceInput('0,00');
+        setManualFinalPrice(0);
+        return;
     }
+    const floatValue = parseFloat(rawValue) / 100;
+    setManualFinalPrice(floatValue);
+    setFinalPriceInput(formatCurrency(floatValue));
   };
 
   const resetForm = () => {
@@ -113,7 +122,8 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     setSelectedMaterials([]);
     setLaborCost(0);
     setLaborInput('0,00');
-    setProfitMargin(30);
+    setManualFinalPrice(0);
+    setFinalPriceInput('0,00');
     setEditingBudgetId(null);
     setOperationalCosts(DEFAULT_OVERHEADS);
   };
@@ -153,21 +163,23 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
 
   const handleSaveInternal = () => {
     if (!selectedClient || !projectTitle.trim()) return alert("Preencha o cliente e o título.");
+    if (manualFinalPrice <= 0) return alert("Defina o valor final do projeto.");
+
     const payload = {
       id: editingBudgetId,
       clientId: selectedClient,
       title: projectTitle,
       deadline,
-      finalPrice,
+      finalPrice: manualFinalPrice,
       materials: selectedMaterials.map(m => ({ materialId: m.id, quantity: m.qty })),
       environments: addedEnvironments,
       laborCost,
       travelCost: 0,
-      profitMargin,
+      profitMargin: currentMargin, // Salva a margem calculada para registro
       totalCost: totalBaseCost,
       subtasks: getAllSubtasks(),
       status: 'Pendente' as const,
-      operationalCosts // Passando os custos operacionais
+      operationalCosts 
     };
     onSavePending(payload);
     resetForm();
@@ -178,17 +190,15 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
        alert("Por favor, preencha o Título do Projeto e selecione um Cliente antes de aprovar.");
        return;
     }
+    if (manualFinalPrice <= 0) return alert("Defina o valor final do projeto.");
     
     // 1. Gera tarefas automáticas de corte para MDFs
     const automatedCuttingTasks: ProjectSubtask[] = [];
     
     selectedMaterials.forEach(item => {
         const mat = materials.find(m => m.id === item.id);
-        // Verifica se é MDF / Chapa baseado na categoria ou unidade
         if (mat && (mat.category === 'MDF / Chapas' || mat.unit === 'Chapa')) {
-            // Arredonda para cima (ex: 2.5 chapas viram 3 tarefas de corte)
             const sheetCount = Math.ceil(item.qty); 
-            
             for (let i = 1; i <= sheetCount; i++) {
                 automatedCuttingTasks.push({
                     title: `Corte chapa "${mat.name}" ${i}`,
@@ -199,7 +209,6 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
         }
     });
 
-    // 2. Combina tarefas manuais com as automáticas
     const manualSubtasks = getAllSubtasks();
     const finalSubtasks = [...manualSubtasks, ...automatedCuttingTasks];
 
@@ -208,20 +217,18 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
       clientId: selectedClient,
       title: projectTitle,
       deadline,
-      finalPrice,
+      finalPrice: manualFinalPrice,
       materials: selectedMaterials.map(m => ({ materialId: m.id, quantity: m.qty })),
       environments: addedEnvironments,
       laborCost,
       travelCost: 0,
-      profitMargin,
+      profitMargin: currentMargin,
       totalCost: totalBaseCost,
       subtasks: finalSubtasks,
-      operationalCosts // Passando os custos operacionais
+      operationalCosts
     };
     
     onApprove(payload);
-    
-    // 🔥 CORREÇÃO: Limpa o formulário imediatamente após aprovar
     resetForm();
   };
 
@@ -234,15 +241,17 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     setSelectedMaterials(budget.materials.map(m => ({ id: m.materialId, qty: m.quantity })));
     setLaborCost(budget.laborCost);
     setLaborInput(formatCurrency(budget.laborCost));
-    setProfitMargin(budget.profitMargin);
     
-    // Tenta recuperar os custos operacionais da descrição (formato hack: ||_OPS_::JSON) ou usa o padrão
+    // Configura o preço manual
+    setManualFinalPrice(budget.finalPrice);
+    setFinalPriceInput(formatCurrency(budget.finalPrice));
+    
+    // Tenta recuperar os custos operacionais
     // @ts-ignore
     if (budget.operationalCosts) {
        // @ts-ignore
        setOperationalCosts(budget.operationalCosts);
     } else {
-       // Fallback: tentar extrair da descrição se estiver salvo lá
        // @ts-ignore
        const opsMatch = (budget.description || '').match(/\|\|_OPS_::(.*)/);
        if (opsMatch && opsMatch[1]) {
@@ -428,11 +437,13 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
                    <input type="text" value={laborInput} onChange={(e) => handleLaborChange(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border-2 border-[#2D473908] font-black focus:border-[#6B8E23] outline-none" />
                 </div>
               </div>
+              {/* CAMPO DE MARGEM PERCENTUAL REMOVIDO E SUBSTITUIDO PELO CUSTO TOTAL VISUAL */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#2D473966] uppercase tracking-widest flex items-center gap-2"><Percent size={14} /> Margem de Lucro Bruto</label>
+                <label className="text-[10px] font-black text-[#2D473966] uppercase tracking-widest flex items-center gap-2"><DollarSign size={14} /> Custo Total de Produção</label>
                 <div className="relative">
-                  <input type="number" value={profitMargin.toFixed(1)} onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)} className="w-full p-4 bg-white rounded-2xl border-2 border-[#2D473908] font-black focus:border-[#6B8E23] outline-none" />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B8E23] font-black">%</span>
+                  <div className="w-full p-4 bg-gray-100 rounded-2xl border-2 border-transparent font-black text-[#2D4739] opacity-70">
+                     R$ {totalBaseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -489,25 +500,27 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
             
             <div className="space-y-2 relative group">
                <div className="flex justify-between items-center">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Fechamento Estimado</h3>
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Valor Final do Projeto</h3>
                   <Edit2 size={12} className="opacity-20 group-hover:opacity-100 transition-opacity" />
                </div>
                <div className="relative">
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 text-4xl md:text-5xl font-black tracking-tighter opacity-50 select-none pointer-events-none">R$</span>
                   <input 
                     type="text" 
-                    value={finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    onChange={handleManualPriceChange}
-                    disabled={totalBaseCost === 0}
-                    className={`w-full bg-transparent text-4xl md:text-5xl font-black tracking-tighter text-white outline-none pl-[2.2ch] placeholder-white/50 border-b border-transparent hover:border-white/20 focus:border-white/40 transition-all ${totalBaseCost === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    value={finalPriceInput}
+                    onChange={handleFinalPriceChange}
+                    className={`w-full bg-transparent text-4xl md:text-5xl font-black tracking-tighter text-white outline-none pl-[2.2ch] placeholder-white/50 border-b border-transparent hover:border-white/20 focus:border-white/40 transition-all`}
                   />
                </div>
-               {totalBaseCost === 0 && (
-                  <p className="text-[9px] text-red-300 font-bold uppercase mt-1">Adicione materiais ou mão de obra para calcular</p>
-               )}
-               <div className="flex items-center gap-3 text-[#6B8E23] font-black text-[10px] uppercase tracking-[0.2em] mt-4">
-                 <div className="p-2 bg-[#6B8E2322] rounded-lg"><TrendingUp size={16} /></div>
-                 <span>Lucro Líquido Previsto: R$ {estimatedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({profitMargin.toFixed(1)}%)</span>
+               
+               <div className="flex flex-col gap-1 mt-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                 <div className="flex items-center gap-3 text-[#6B8E23] font-black text-[10px] uppercase tracking-[0.2em]">
+                   <div className="p-1.5 bg-[#6B8E2322] rounded-lg"><TrendingUp size={14} /></div>
+                   <span>Lucro Estimado: R$ {estimatedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                 </div>
+                 <div className="flex items-center gap-3 text-white/60 font-bold text-[9px] uppercase tracking-[0.2em] ml-1">
+                   <span>Margem Calculada: {currentMargin.toFixed(1)}%</span>
+                 </div>
                </div>
             </div>
 

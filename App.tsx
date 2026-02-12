@@ -648,7 +648,7 @@ const App: React.FC = () => {
       // Separa subtasks (que existem em Project) e operationalCosts (novo)
       // Para evitar erro de coluna no banco, vamos "embutir" os custos na descrição
       // já que não podemos criar colunas agora.
-      const { subtasks, operationalCosts, ...budgetDataForDb } = budgetData;
+      const { subtasks, operationalCosts, laborCost, ...budgetDataForDb } = budgetData;
       
       let description = (budgetData.environments || []).map((e: any) => e.type).join(', ') || 'Projeto Personalizado';
       
@@ -670,7 +670,9 @@ const App: React.FC = () => {
         value: budgetData.finalPrice,
         isPaid: false,
         isAdvancePaid: false,
-        advanceValue: 0
+        advanceValue: 0,
+        laborCost: laborCost || 0, // 🔥 Importante: Salvando o custo de mão de obra
+        operationalCosts: operationalCosts // Salvando também como objeto se o banco aceitar
       };
 
       setProjects(prev => [...prev, newProject]);
@@ -700,6 +702,7 @@ const App: React.FC = () => {
         
         const newBudget: Budget = {
           ...budgetDataForDb, // Usa versão limpa sem subtasks/ops
+          laborCost: laborCost, // Budget tem laborCost
           // @ts-ignore - Forçando description no budget se o tipo permitir ou ignorando se não
           description: budgetDescForDb, 
           id: Math.random().toString(36).substr(2, 9),
