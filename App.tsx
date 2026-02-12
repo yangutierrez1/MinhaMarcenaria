@@ -140,7 +140,9 @@ const App: React.FC = () => {
   // --- INITIAL DATA LOAD ---
   useEffect(() => {
     const initData = async () => {
-      if (!session) return; 
+      // Verifica explicitamente o ID do usuário para evitar recargas desnecessárias 
+      // quando apenas o token da sessão é atualizado (ex: troca de aba)
+      if (!session?.user?.id) return; 
 
       setIsLoading(true);
       try {
@@ -176,7 +178,7 @@ const App: React.FC = () => {
       }
     };
     initData();
-  }, [session]);
+  }, [session?.user?.id]); // Dependência alterada de [session] para [session?.user?.id]
 
   const handleOpenBrandModal = () => {
     setTempBrandConfig(brandConfig);
