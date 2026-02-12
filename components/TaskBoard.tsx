@@ -615,14 +615,25 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                       </button>
                    </div>
                    {hasDeadline ? (
-                      <input 
-                        type="date" 
-                        value={deadline}
-                        onChange={(e) => setDeadline(e.target.value)}
-                        className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] outline-none animate-in slide-in-from-top-2 duration-300"
-                      />
+                      <div className="relative">
+                        <input 
+                          type="date" 
+                          value={deadline}
+                          onChange={(e) => setDeadline(e.target.value)}
+                          className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] outline-none relative z-10"
+                          onClick={(e) => {
+                            // Tenta abrir o picker nativo programaticamente se suportado, para garantir comportamento
+                            if ('showPicker' in HTMLInputElement.prototype) {
+                              try { e.currentTarget.showPicker(); } catch (err) {}
+                            }
+                          }}
+                        />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#2D473944] z-0 pointer-events-none">
+                           <Calendar size={20} />
+                        </div>
+                      </div>
                    ) : (
-                      <div className="w-full p-4 bg-white/40 rounded-2xl border border-dashed border-[#2D473911] text-center">
+                      <div className="w-full p-4 bg-white/40 rounded-2xl border border-dashed border-[#2D473911] text-center h-[58px] flex items-center justify-center">
                         <span className="text-[10px] font-black uppercase text-[#2D473944] tracking-widest">Sem data definida</span>
                       </div>
                    )}

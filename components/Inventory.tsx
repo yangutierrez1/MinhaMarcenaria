@@ -42,7 +42,7 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBa
   const [priceInput, setPriceInput] = useState('0,00');
   const [unit, setUnit] = useState('Chapa');
   
-  // Batch State
+  // Batch State (Restored)
   const [pendingMaterials, setPendingMaterials] = useState<Omit<Material, 'id'>[]>([]);
   
   const [registerInFinance, setRegisterInFinance] = useState(false);

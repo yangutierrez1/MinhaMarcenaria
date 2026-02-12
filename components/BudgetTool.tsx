@@ -172,7 +172,11 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
       totalCost: totalBaseCost,
       subtasks: getAllSubtasks()
     };
+    
     onApprove(payload);
+    
+    // 🔥 CORREÇÃO: Limpa o formulário imediatamente após aprovar
+    resetForm();
   };
 
   const handleEditBudget = (budget: Budget) => {
@@ -457,7 +461,11 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
                     <div className="flex justify-between items-center mt-6">
                       <p className="text-xs font-black text-[#6B8E23] tracking-wider">R$ {b.finalPrice.toLocaleString('pt-BR')}</p>
                       <button 
-                        onClick={() => onApprove({ ...b, budgetId: b.id })}
+                        onClick={() => {
+                           // 🔥 Limpa o form antes de aprovar da lista também, caso tenha algo pendente
+                           resetForm();
+                           onApprove({ ...b, budgetId: b.id });
+                        }}
                         className="p-3 bg-[#6B8E23] rounded-2xl text-white hover:scale-110 transition-all shadow-xl"
                       >
                         <ArrowRight size={18} />
