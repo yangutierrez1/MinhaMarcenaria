@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Material } from '../types';
 import { Plus, Edit2, Trash2, Save, Package, Coins, Search, Layers, DollarSign, Store, Calculator, Calendar, Tag, ChevronDown, ListPlus, XCircle } from 'lucide-react';
 import { formatBRL, parseCurrencyInput } from '../utils/format';
@@ -7,8 +7,9 @@ import Button from './ui/Button';
 
 interface InventoryProps {
   materials: Material[];
-  onAddMaterial: (material: Omit<Material, 'id'>, createExpense: boolean, dueDate?: string) => void;
-  onAddStock: (id: string, quantityToAdd: number, newPrice: number, createExpense: boolean, dueDate?: string) => void;
+  onAddMaterial: (material: Omit<Material, 'id'>, createExpense: boolean, dueDate?: string, customTotalValue?: number) => void;
+  onAddBatchMaterials?: (materials: Omit<Material, 'id'>[], createExpense: boolean, dueDate?: string, customTotalValue?: number) => void;
+  onAddStock: (id: string, quantityToAdd: number, newPrice: number, createExpense: boolean, dueDate?: string, customTotalValue?: number) => void;
   onUpdateMaterial: (id: string, updates: Partial<Material>) => void;
   onDeleteMaterial: (id: string) => void;
 }
@@ -26,7 +27,7 @@ const MATERIAL_TYPES = [
   'Outros'
 ];
 
-const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddStock, onUpdateMaterial, onDeleteMaterial }) => {
+const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddBatchMaterials, onAddStock, onUpdateMaterial, onDeleteMaterial }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isNewMaterial, setIsNewMaterial] = useState(true);
@@ -46,6 +47,10 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddSt
   
   const [registerInFinance, setRegisterInFinance] = useState(false);
   const [financeDueDate, setFinanceDueDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // State for Finance Override
+  const [customFinanceValue, setCustomFinanceValue] = useState('0,00');
+  const [userEditedFinance, setUserEditedFinance] = useState(false);
 
   const totalValue = materials.reduce((sum, m) => sum + (m.price * m.quantity), 0);
 
@@ -53,6 +58,12 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddSt
     const val = parseCurrencyInput(e.target.value);
     setPrice(val);
     setPriceInput(formatBRL(val));
+  };
+
+  const handleCustomFinanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUserEditedFinance(true);
+    const val = parseCurrencyInput(e.target.value);
+    setCustomFinanceValue(formatBRL(val));
   };
 
   const openAddModal = () => {
@@ -68,6 +79,8 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddSt
     setName(''); setSupplier(''); setCategory('MDF / Chapas'); setQuantity(0); setPrice(0); setUnit('Chapa');
     setPriceInput('0,00');
     setPendingMaterials([]);
+    setCustomFinanceValue('0,00');
+    setUserEditedFinance(false);
   };
 
   const openEditModal = (material: Material) => {
@@ -119,7 +132,19 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddSt
     setPendingMaterials(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Cálculo do total do lote para exibir no financeiro
+  const batchTotal = pendingMaterials.reduce((acc, m) => acc + (m.price * m.quantity), 0) + (isNewMaterial && name ? price * quantity : 0);
+
+  // Sincroniza o valor total calculado com o input financeiro, se o usuário não o tiver editado
+  useEffect(() => {
+    if (!userEditedFinance && isModalOpen) {
+      setCustomFinanceValue(formatBRL(batchTotal));
+    }
+  }, [batchTotal, userEditedFinance, isModalOpen]);
+
   const handleSave = () => {
+    const finalFinanceValue = userEditedFinance ? parseCurrencyInput(customFinanceValue) : undefined;
+
     if (editingId) {
        // Edição simples
        if (!name.trim()) return alert("Nome é obrigatório.");
@@ -128,33 +153,37 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddSt
     } else if (isNewMaterial) {
        // Novo Cadastro (Lote ou Simples)
        if (pendingMaterials.length > 0) {
-          // Salvar Lote
-          pendingMaterials.forEach(m => {
-            onAddMaterial(m, registerInFinance, financeDueDate);
-          });
-          // Se houver algo preenchido no form que não foi adicionado à lista, perguntar ou adicionar?
-          // Simplificação: Se tiver lista, ignora o form não adicionado ou alerta.
-          // Aqui vamos salvar o form TAMBÉM se ele estiver válido e o usuário não tiver clicado em "+"
+          // Prepara a lista para salvar em lote
+          const itemsToSave = [...pendingMaterials];
+          
+          // Se houver um item preenchido nos inputs mas não adicionado à lista, adiciona ele também
           if (name.trim() && quantity > 0) {
-             onAddMaterial({ name, supplier, category, quantity, price, unit }, registerInFinance, financeDueDate);
+             itemsToSave.push({ name, supplier, category, quantity, price, unit });
+          }
+
+          if (onAddBatchMaterials) {
+            // Usa a função de lote (Agrupa valor financeiro)
+            onAddBatchMaterials(itemsToSave, registerInFinance, financeDueDate, finalFinanceValue);
+          } else {
+            // Fallback para função individual (Legado ou se prop não existir)
+            itemsToSave.forEach(m => {
+              onAddMaterial(m, registerInFinance, financeDueDate);
+            });
           }
        } else {
-          // Salvar Simples
+          // Salvar Simples (Um item apenas)
           if (!name.trim()) return alert("Nome é obrigatório.");
           const data = { name, supplier, category, quantity, price, unit };
-          onAddMaterial(data, registerInFinance, financeDueDate);
+          onAddMaterial(data, registerInFinance, financeDueDate, finalFinanceValue);
        }
     } else {
        // Adicionar Estoque em Item Existente
        if (!selectedMaterialId) return alert("Selecione um material.");
        if (quantity <= 0) return alert("A quantidade deve ser maior que zero.");
-       onAddStock(selectedMaterialId, quantity, price, registerInFinance, financeDueDate);
+       onAddStock(selectedMaterialId, quantity, price, registerInFinance, financeDueDate, finalFinanceValue);
     }
     setIsModalOpen(false);
   };
-
-  // Cálculo do total do lote para exibir no financeiro
-  const batchTotal = pendingMaterials.reduce((acc, m) => acc + (m.price * m.quantity), 0) + (isNewMaterial && name ? price * quantity : 0);
 
   return (
     <div className="space-y-10 animate-fade-in pb-20">
@@ -369,13 +398,27 @@ const Inventory: React.FC<InventoryProps> = ({ materials, onAddMaterial, onAddSt
                     
                     {registerInFinance && (
                       <div className="mt-6 pt-6 border-t border-[#2D473908] animate-in slide-in-from-top-4 duration-300">
-                          <div className="space-y-3">
+                          <div className="space-y-3 mb-6">
                               <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest flex items-center gap-2"><Calendar size={12} /> Vencimento do Boleto / Pagamento</label>
                               <input type="date" value={financeDueDate} onChange={e => setFinanceDueDate(e.target.value)} className="w-full p-4 bg-white rounded-xl border border-[#2D473911] font-black text-[#2D4739] outline-none" />
                           </div>
-                          <div className="mt-4 flex justify-between items-center bg-[#FDFBE2] p-4 rounded-xl border border-[#6B8E2322]">
-                             <span className="text-[10px] font-black text-[#2D473966] uppercase tracking-widest">Valor Total do Lote</span>
-                             <span className="text-lg font-black text-[#6B8E23]">R$ {formatBRL(batchTotal)}</span>
+
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest flex items-center gap-2">Valor Final da Nota (Total)</label>
+                            <div className="relative group">
+                              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#2D473944] font-black text-sm">R$</div>
+                              <input 
+                                type="text" 
+                                value={customFinanceValue} 
+                                onChange={handleCustomFinanceChange} 
+                                className="w-full pl-12 pr-4 py-4 bg-white rounded-xl border border-[#2D473911] font-black text-[#2D4739] outline-none focus:border-[#6B8E23] transition-all" 
+                              />
+                            </div>
+                            {userEditedFinance && (
+                               <p className="text-[9px] text-[#6B8E23] font-bold text-right cursor-pointer hover:underline" onClick={() => { setUserEditedFinance(false); setCustomFinanceValue(formatBRL(batchTotal)); }}>
+                                  Resetar para valor calculado (R$ {formatBRL(batchTotal)})
+                               </p>
+                            )}
                           </div>
                       </div>
                     )}

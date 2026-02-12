@@ -433,7 +433,7 @@ const App: React.FC = () => {
   };
 
   // --- MATERIALS / STOCK / DEBTS HANDLERS ---
-  const handleAddMaterialFromInventory = async (material: Omit<Material, 'id'>, createExpense: boolean, dueDate?: string) => {
+  const handleAddMaterialFromInventory = async (material: Omit<Material, 'id'>, createExpense: boolean, dueDate?: string, customTotalValue?: number) => {
     const newId = Math.random().toString(36).substr(2, 9);
     const newMaterial = { ...material, id: newId };
     
@@ -441,22 +441,66 @@ const App: React.FC = () => {
     await api.materials.create(newMaterial);
 
     if (createExpense) {
-      const totalValue = material.price * material.quantity;
-      const newDebt: Debt = {
-        id: Math.random().toString(36).substr(2, 9),
-        supplier: material.supplier,
-        description: `Compra Estoque: ${material.name}`,
-        value: totalValue,
-        dueDate: dueDate || new Date().toISOString().split('T')[0],
-        status: 'Pendente',
-        materials: [{ materialId: newId, quantity: material.quantity }]
-      };
-      setDebts(prev => [...prev, newDebt]);
-      await api.debts.create(newDebt);
+      const calculatedTotal = material.price * material.quantity;
+      const finalDebtValue = customTotalValue !== undefined && customTotalValue > 0 ? customTotalValue : calculatedTotal;
+
+      if (finalDebtValue > 0) {
+        const newDebt: Debt = {
+          id: Math.random().toString(36).substr(2, 9),
+          supplier: material.supplier,
+          description: `Compra Estoque: ${material.name}`,
+          value: finalDebtValue,
+          dueDate: dueDate || new Date().toISOString().split('T')[0],
+          status: 'Pendente',
+          materials: [{ materialId: newId, quantity: material.quantity }]
+        };
+        setDebts(prev => [...prev, newDebt]);
+        await api.debts.create(newDebt);
+      }
     }
   };
 
-  const handleAddStock = async (id: string, quantityToAdd: number, newPrice: number, createExpense: boolean, dueDate?: string) => {
+  const handleAddBatchMaterials = async (materialsList: Omit<Material, 'id'>[], createExpense: boolean, dueDate?: string, customTotalValue?: number) => {
+    const newMaterials: Material[] = [];
+    const debtMaterials: { materialId: string; quantity: number }[] = [];
+    let calculatedTotal = 0;
+    
+    // Tenta pegar o fornecedor do primeiro item ou usa Diverso
+    const supplierName = materialsList.length > 0 ? materialsList[0].supplier : 'Diverso';
+
+    for (const mat of materialsList) {
+       const newId = Math.random().toString(36).substr(2, 9);
+       const materialWithId = { ...mat, id: newId };
+       
+       newMaterials.push(materialWithId);
+       debtMaterials.push({ materialId: newId, quantity: mat.quantity });
+       calculatedTotal += (mat.price * mat.quantity);
+
+       // Chamadas assíncronas para criar materiais individualmente
+       await api.materials.create(materialWithId);
+    }
+
+    setMaterials(prev => [...prev, ...newMaterials]);
+
+    // Cria UMA única conta a pagar se solicitado
+    const finalDebtValue = customTotalValue !== undefined && customTotalValue > 0 ? customTotalValue : calculatedTotal;
+
+    if (createExpense && finalDebtValue > 0) {
+       const newDebt: Debt = {
+         id: Math.random().toString(36).substr(2, 9),
+         supplier: supplierName,
+         description: `Compra Estoque (Lote: ${materialsList.length} itens)`,
+         value: finalDebtValue,
+         dueDate: dueDate || new Date().toISOString().split('T')[0],
+         status: 'Pendente',
+         materials: debtMaterials
+       };
+       setDebts(prev => [...prev, newDebt]);
+       await api.debts.create(newDebt);
+    }
+  };
+
+  const handleAddStock = async (id: string, quantityToAdd: number, newPrice: number, createExpense: boolean, dueDate?: string, customTotalValue?: number) => {
     const material = materials.find(m => m.id === id);
     if (!material) return;
 
@@ -469,18 +513,22 @@ const App: React.FC = () => {
     await api.materials.update(id, updates);
 
     if (createExpense) {
-      const totalValue = newPrice * quantityToAdd;
-      const newDebt: Debt = {
-        id: Math.random().toString(36).substr(2, 9),
-        supplier: material.supplier,
-        description: `Reposição Estoque: ${material.name}`,
-        value: totalValue,
-        dueDate: dueDate || new Date().toISOString().split('T')[0],
-        status: 'Pendente',
-        materials: [{ materialId: id, quantity: quantityToAdd }]
-      };
-      setDebts(prev => [...prev, newDebt]);
-      await api.debts.create(newDebt);
+      const calculatedTotal = newPrice * quantityToAdd;
+      const finalDebtValue = customTotalValue !== undefined && customTotalValue > 0 ? customTotalValue : calculatedTotal;
+
+      if (finalDebtValue > 0) {
+        const newDebt: Debt = {
+          id: Math.random().toString(36).substr(2, 9),
+          supplier: material.supplier,
+          description: `Reposição Estoque: ${material.name}`,
+          value: finalDebtValue,
+          dueDate: dueDate || new Date().toISOString().split('T')[0],
+          status: 'Pendente',
+          materials: [{ materialId: id, quantity: quantityToAdd }]
+        };
+        setDebts(prev => [...prev, newDebt]);
+        await api.debts.create(newDebt);
+      }
     }
   };
 
@@ -723,7 +771,7 @@ const App: React.FC = () => {
       case 'projects': return <Board projects={projects} setProjects={setProjects} clients={clients} onMarkAsPaid={(id) => handleUpdateProject(id, { isPaid: true })} onDeleteProject={handleDeleteProject} onToggleSubtask={handleToggleProjectSubtask} onSetAdvance={handleSetAdvance} onMoveBack={handleMoveProjectBack} onUpdateProject={handleUpdateProject} />;
       case 'budgets': return <BudgetTool materials={materials} clients={clients} budgets={budgets} onApprove={handleApproveBudget} onSavePending={handleSaveBudget} onDeleteBudget={handleDeleteBudget} />;
       case 'agenda': return <Agenda events={events} projects={projects} clients={clients} onAddEvent={handleAddEvent} onUpdateEvent={handleUpdateEvent} onDeleteEvent={handleDeleteEvent} />;
-      case 'inventory': return <Inventory materials={materials} onAddMaterial={(m, createExpense, dueDate) => handleAddMaterialFromInventory(m, createExpense, dueDate)} onAddStock={handleAddStock} onUpdateMaterial={handleUpdateMaterial} onDeleteMaterial={handleDeleteMaterial} />;
+      case 'inventory': return <Inventory materials={materials} onAddMaterial={(m, createExpense, dueDate, customTotalValue) => handleAddMaterialFromInventory(m, createExpense, dueDate, customTotalValue)} onAddBatchMaterials={handleAddBatchMaterials} onAddStock={handleAddStock} onUpdateMaterial={handleUpdateMaterial} onDeleteMaterial={handleDeleteMaterial} />;
       case 'finance': return <Finance projects={projects} materials={materials} budgets={budgets} fixedExpenses={fixedExpenses} debts={debts} manualRevenues={manualRevenues} onAddFixedExpense={handleAddFixedExpense} onDeleteFixedExpense={handleDeleteFixedExpense} onToggleExpenseStatus={handleToggleExpenseStatus} onUpdateFixedExpense={handleUpdateFixedExpense} onToggleDebtStatus={handleToggleDebtStatus} onUpdateDebt={handleUpdateDebt} onAddDebt={handleAddDebt} onDeleteDebt={handleDeleteDebt} onAddManualRevenue={handleAddManualRevenue} onDeleteManualRevenue={handleDeleteManualRevenue} onDeleteProject={handleDeleteProject} onUpdateProject={handleUpdateProject} onNavigate={setActiveTab} monthlyGoal={monthlyGoal} setMonthlyGoal={setMonthlyGoal} />;
       case 'clients': return <Clients clients={clients} projects={projects} onAddClient={handleAddClient} onUpdateClient={handleUpdateClient} onDeleteClient={handleDeleteClient} onNavigate={setActiveTab} />;
       case 'pendencies': return <Pendencies pendencies={manualPendencies} onAddPendency={handleAddManualPendency} onTogglePendency={handleToggleManualPendency} onDeletePendency={handleDeleteManualPendency} />;
