@@ -471,7 +471,6 @@ const Finance: React.FC<FinanceProps> = ({
   );
 
   const renderHistory = () => {
-    // Explicit typing for transactions array to avoid implicit any[] error
     const transactions: any[] = [];
 
     filteredData.projects.forEach((p: any) => {
@@ -488,10 +487,7 @@ const Finance: React.FC<FinanceProps> = ({
 
     filteredData.fixedExpenses.forEach((e: any) => {
       const isPaid = e.isRecurring ? e.paidMonths?.includes(currentMonthYear) : e.status === 'Pago';
-      // Limpa a descrição para exibir sem tags
       const cleanDesc = cleanDescription(e.description);
-      
-      // Detecta se é compra de insumo operacional
       const isOpSpend = e.description.includes('||_OP_SPEND_::');
       const categoryLabel = isOpSpend ? 'Insumos (Caixa)' : e.category;
 
@@ -613,13 +609,11 @@ const Finance: React.FC<FinanceProps> = ({
     const fundTotals: Record<string, number> = {};
     const fundSpent: Record<string, number> = {};
     
-    // Inicializa com as categorias padrão zeradas
     DEFAULT_CATEGORIES.forEach(c => {
        fundTotals[c] = 0;
        fundSpent[c] = 0;
     });
 
-    // 1. Calcular Entradas (Via Orçamentos)
     projects.forEach(project => {
        const opsMatch = (project.description || '').match(/\|\|_OPS_::(.*)/);
        if (opsMatch && opsMatch[1]) {
@@ -638,18 +632,13 @@ const Finance: React.FC<FinanceProps> = ({
        }
     });
 
-    // 2. Calcular Saídas (Via Fixed Expenses marcadas)
-    // Filtramos TODAS as despesas fixas (não apenas do mês selecionado) para ter o saldo real acumulado
     fixedExpenses.forEach(e => {
         const match = e.description.match(/\|\|_OP_SPEND_::(.*)/);
         if (match && match[1]) {
             const cat = match[1];
-            // Soma se estiver marcada como paga (ou pendente se quisermos ver o comprometido, vamos usar tudo registrado)
-            // Geralmente compra de insumo é a vista, então consideramos o valor
             if (fundSpent[cat] !== undefined) {
                 fundSpent[cat] += e.value;
             } else {
-                // Caso seja uma categoria antiga ou custom
                 fundSpent[cat] = e.value;
             }
         }
@@ -744,7 +733,7 @@ const Finance: React.FC<FinanceProps> = ({
       date: r.date,
       type: 'Venda/Serviço',
       client: r.clientName,
-      originalProject: undefined // Add this property to match the shape
+      originalProject: undefined
     }));
 
     const allReceivables = [...projectReceivables, ...manualReceivables].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -921,9 +910,6 @@ const Finance: React.FC<FinanceProps> = ({
               ? e.paidMonths?.includes(currentMonthYear)
               : e.status === 'Pago';
             
-            // Não exibir compras de insumos aqui para não poluir, a menos que queira
-            // Se for insumo, mostramos de forma diferente ou filtramos
-            // Por enquanto, mostramos tudo mas com descrição limpa
             const cleanDesc = cleanDescription(e.description);
             const isOpSpend = e.description.includes('||_OP_SPEND_::');
 
@@ -989,6 +975,297 @@ const Finance: React.FC<FinanceProps> = ({
           ))}
         </div>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 animate-fade-in pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+        {/* Subtabs */}
+        <div className="flex flex-wrap gap-2 bg-white/40 p-2 rounded-[2rem] border border-[#2D473908] w-fit">
+          <SubTabBtn active={activeSubTab === 'overview'} label="Visão Geral" onClick={() => setActiveSubTab('overview')} icon={<LayoutDashboard size={14} />} />
+          <SubTabBtn active={activeSubTab === 'receivables'} label="Entradas" onClick={() => setActiveSubTab('receivables')} icon={<TrendingUp size={14} />} />
+          <SubTabBtn active={activeSubTab === 'expenses'} label="Saídas" onClick={() => setActiveSubTab('expenses')} icon={<TrendingDown size={14} />} />
+          <SubTabBtn active={activeSubTab === 'operational-fund'} label="Caixa Operacional" onClick={() => setActiveSubTab('operational-fund')} icon={<Archive size={14} />} />
+          <SubTabBtn active={activeSubTab === 'history'} label="Extrato" onClick={() => setActiveSubTab('history')} icon={<History size={14} />} />
+        </div>
+
+        {/* MONTH SELECTOR - FILTRO MENSAL */}
+        <div className="flex items-center gap-6 bg-white p-2 pr-6 rounded-full shadow-lg border border-[#2D473908]">
+           <button onClick={handlePrevMonth} className="p-3 bg-[#FDFBE2] text-[#2D4739] rounded-full hover:bg-[#2D4739] hover:text-[#FDFBE2] transition-colors">
+              <ChevronLeft size={20} />
+           </button>
+           <div className="text-center min-w-[140px]">
+              <span className="block text-xs font-black uppercase tracking-widest text-[#2D473944] mb-0.5">Competência</span>
+              <span className="block text-lg font-black text-[#2D4739] uppercase tracking-tighter">
+                {monthNames[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+              </span>
+           </div>
+           <button onClick={handleNextMonth} className="p-3 bg-[#FDFBE2] text-[#2D4739] rounded-full hover:bg-[#2D4739] hover:text-[#FDFBE2] transition-colors">
+              <ChevronRight size={20} />
+           </button>
+        </div>
+      </div>
+
+      {activeSubTab === 'overview' && renderOverview()}
+      {activeSubTab === 'receivables' && renderReceivables()}
+      {activeSubTab === 'expenses' && renderExpenses()}
+      {activeSubTab === 'operational-fund' && renderOperationalFund()}
+      {activeSubTab === 'history' && renderHistory()}
+      
+      {/* Universal Finance Modal */}
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-[#1A2E24]/90 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#FDFBE2] w-full max-w-xl rounded-[2.5rem] md:rounded-[3rem] shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+            <div className="p-6 md:p-8 border-b border-[#2D473911] flex justify-between items-center bg-white/50 flex-shrink-0">
+               <div className="flex items-center gap-4">
+                  <div className="p-4 bg-[#2D4739] text-[#FDFBE2] rounded-2xl shadow-xl">
+                    {modalType === 'expense' && <TrendingDown size={24} />}
+                    {modalType === 'revenue' && <TrendingUp size={24} />}
+                    {modalType === 'stock' && <ShoppingBag size={24} />}
+                    {modalType === 'project-revenue' && <DollarSign size={24} />}
+                    {modalType === 'op-fund-spend' && <ShoppingCart size={24} />}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-[#2D4739] uppercase tracking-tighter">
+                      {editingId ? 'Editar Lançamento' : 'Novo Lançamento'}
+                    </h3>
+                    <p className="text-xs font-black text-[#6B8E23] uppercase tracking-widest mt-1">
+                      {modalType === 'expense' && 'Despesa / Custo Fixo'}
+                      {modalType === 'revenue' && 'Receita Extra'}
+                      {modalType === 'stock' && 'Compra de Material'}
+                      {modalType === 'project-revenue' && 'Ajuste de Projeto'}
+                      {modalType === 'op-fund-spend' && 'Retirada de Caixa Operacional'}
+                    </p>
+                  </div>
+               </div>
+               <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-[#2D473911] rounded-2xl transition-all"><X size={24} /></button>
+            </div>
+            
+            <div className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+               
+               {/* FORMULARIO DE DESPESA OU RECEITA OU ESTOQUE */}
+               <div className="space-y-4">
+                  
+                  {modalType === 'op-fund-spend' && (
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Insumo / Categoria</label>
+                        <select 
+                           value={opFundCategory} 
+                           onChange={e => setOpFundCategory(e.target.value)} 
+                           className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] outline-none"
+                        >
+                           {DEFAULT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
+                     </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Descrição</label>
+                    <input 
+                      type="text" 
+                      value={formDesc} 
+                      onChange={e => setFormDesc(e.target.value)} 
+                      className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] outline-none" 
+                      placeholder={
+                          modalType === 'stock' ? 'Obs: Compra de urgência' : 
+                          modalType === 'op-fund-spend' ? 'Ex: 10 caixas de parafuso 4x40' : 
+                          'Ex: Conta de Luz'
+                      }
+                    />
+                  </div>
+
+                  {(modalType === 'expense' || modalType === 'revenue' || modalType === 'stock' || modalType === 'op-fund-spend') && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Valor (R$)</label>
+                      <input 
+                        type="number" 
+                        value={formValue} 
+                        onChange={e => setFormValue(e.target.value)} 
+                        className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black text-[#2D4739] text-xl outline-none" 
+                        placeholder="0.00"
+                      />
+                    </div>
+                  )}
+
+                  {modalType === 'stock' && (
+                     <div className="space-y-2">
+                       <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Fornecedor</label>
+                       <input type="text" value={formSupplier} onChange={e => setFormSupplier(e.target.value)} className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black outline-none" />
+                     </div>
+                  )}
+
+                  {(modalType === 'expense' || modalType === 'revenue' || modalType === 'stock' || modalType === 'op-fund-spend') && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">
+                        {modalType === 'revenue' ? 'Data do Recebimento' : 'Data de Vencimento / Compra'}
+                      </label>
+                      <div className="relative group">
+                          <input 
+                            type="date" 
+                            ref={dateRef}
+                            value={formDate} 
+                            onChange={e => setFormDate(e.target.value)} 
+                            className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black outline-none relative z-10 bg-transparent"
+                            onClick={(e) => {
+                              if ('showPicker' in HTMLInputElement.prototype) {
+                                try { e.currentTarget.showPicker(); } catch (err) {}
+                              }
+                            }}
+                          />
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#2D473944] z-0">
+                             <Calendar size={20} />
+                          </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {modalType === 'revenue' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Cliente (Opcional)</label>
+                      <input type="text" value={formClient} onChange={e => setFormClient(e.target.value)} className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black outline-none" />
+                    </div>
+                  )}
+
+                  {modalType === 'expense' && (
+                    <div className="flex items-center gap-3 p-4 bg-[#FDFBE2] rounded-2xl border border-[#2D473911] mt-2">
+                       <button 
+                          onClick={() => setIsRecurring(!isRecurring)} 
+                          className={`w-12 h-6 rounded-full transition-all relative ${isRecurring ? 'bg-[#6B8E23]' : 'bg-[#2D473922]'}`}
+                       >
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${isRecurring ? 'left-7' : 'left-1'}`} />
+                       </button>
+                       <span className="text-xs font-black text-[#2D4739] uppercase tracking-wide">Despesa Mensal Recorrente</span>
+                    </div>
+                  )}
+               </div>
+            </div>
+
+            <div className="p-6 md:p-8 bg-white/50 border-t border-[#2D473911] flex justify-end gap-4 flex-shrink-0">
+               {editingId && (
+                 <button onClick={handleDeleteEntry} className="px-6 py-3 bg-red-50 text-red-500 hover:bg-red-100 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all">
+                    <Trash2 size={16} /> Excluir
+                 </button>
+               )}
+               <div className="flex gap-4">
+                 <button onClick={() => setIsModalOpen(false)} className="px-8 py-4 bg-[#2D473911] text-[#2D4739] rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#2D473922] transition-all">Cancelar</button>
+                 <button onClick={handleAddEntry} className="px-12 py-4 bg-[#2D4739] text-[#FDFBE2] rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-3 hover:scale-105 transition-all">
+                   <Save size={18} /> Salvar
+                 </button>
+               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* PROFIT ANALYSIS MODAL */}
+      {isProfitModalOpen && selectedProjectForProfit && (
+         <Modal
+            isOpen={isProfitModalOpen}
+            onClose={() => setIsProfitModalOpen(false)}
+            title="Análise de Lucratividade"
+            subtitle={selectedProjectForProfit.name}
+            icon={<PieIcon size={24} />}
+            footer={
+               <div className="flex justify-end gap-4 w-full">
+                  <Button variant="ghost" onClick={() => setIsProfitModalOpen(false)}>Fechar</Button>
+               </div>
+            }
+         >
+            {(() => {
+               const financials = calculateProjectFinancials(selectedProjectForProfit);
+               
+               return (
+                  <div className="space-y-8">
+                     {/* Summary */}
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-4 rounded-2xl border border-[#2D473911]">
+                           <p className="text-[9px] font-black text-[#2D473966] uppercase tracking-widest">Receita Total</p>
+                           <p className="text-xl font-black text-[#2D4739] tracking-tighter">R$ {formatBRL(financials.revenue)}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-[#2D473911]">
+                           <p className="text-[9px] font-black text-[#2D473966] uppercase tracking-widest">Custo Total</p>
+                           <p className="text-xl font-black text-red-500 tracking-tighter">R$ {formatBRL(financials.totalCost)}</p>
+                        </div>
+                        <div className={`p-4 rounded-2xl border ${financials.profit >= 0 ? 'bg-[#6B8E2311] border-[#6B8E2344]' : 'bg-red-50 border-red-200'}`}>
+                           <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Lucro Líquido</p>
+                           <p className={`text-xl font-black tracking-tighter ${financials.profit >= 0 ? 'text-[#6B8E23]' : 'text-red-500'}`}>
+                              R$ {formatBRL(financials.profit)}
+                           </p>
+                        </div>
+                        <div className={`p-4 rounded-2xl border ${financials.margin >= 20 ? 'bg-[#6B8E23] text-white' : 'bg-[#2D4739] text-[#FDFBE2]'}`}>
+                           <p className="text-[9px] font-black uppercase tracking-widest opacity-80">Margem</p>
+                           <p className="text-xl font-black tracking-tighter">{financials.margin.toFixed(1)}%</p>
+                        </div>
+                     </div>
+
+                     {/* Detail Breakdown */}
+                     <div className="bg-white p-6 rounded-[2.5rem] border border-[#2D473911] space-y-6">
+                        <h4 className="text-xs font-black text-[#2D4739] uppercase tracking-[0.2em] flex items-center gap-2">
+                           <Calculator size={14} /> Detalhamento de Custos
+                        </h4>
+                        
+                        {/* Cost Adjuster */}
+                        <div className="space-y-4">
+                           <div className="flex items-center justify-between p-4 bg-[#FDFBE2] rounded-2xl border border-[#2D473908]">
+                              <div className="space-y-1">
+                                 <p className="text-[10px] font-black uppercase tracking-widest text-[#2D473966]">Materiais (Real)</p>
+                                 <p className="text-xs text-[#2D4739] font-bold">Original Calculado: R$ {formatBRL(financials.calculatedMatCost)}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                 <span className="text-[10px] font-black text-[#2D473944] uppercase tracking-widest">Ajustar:</span>
+                                 <div className="relative w-32">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-[#2D473966]">R$</span>
+                                    <input 
+                                       type="text" 
+                                       value={tempMaterialCost}
+                                       onChange={(e) => {
+                                          const val = parseCurrencyInput(e.target.value);
+                                          setTempMaterialCost(formatBRL(val));
+                                       }}
+                                       className="w-full pl-8 pr-3 py-2 bg-white rounded-xl border border-[#2D473911] text-xs font-black text-[#2D4739] outline-none focus:border-[#6B8E23]"
+                                    />
+                                 </div>
+                                 <button 
+                                    onClick={handleSaveMaterialCostAdjustment}
+                                    className="p-2 bg-[#6B8E23] text-white rounded-xl hover:scale-105 transition-all shadow-md"
+                                    title="Salvar Custo Real"
+                                 >
+                                    <Save size={14} />
+                                 </button>
+                              </div>
+                           </div>
+
+                           {/* Read Only Costs */}
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="p-4 bg-white rounded-2xl border border-[#2D473908] flex justify-between items-center">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#2D473966]">Operacional</span>
+                                 <span className="text-sm font-black text-[#2D4739]">R$ {formatBRL(financials.operationalCost)}</span>
+                              </div>
+                              <div className="p-4 bg-white rounded-2xl border border-[#2D473908] flex justify-between items-center">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#2D473966]">Mão de Obra</span>
+                                 <span className="text-sm font-black text-[#2D4739]">R$ {formatBRL(financials.laborCost)}</span>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               );
+            })()}
+         </Modal>
+      )}
+
+      {/* Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        description={confirmConfig.description}
+        confirmText={confirmConfig.confirmText}
+        variant={confirmConfig.variant}
+      />
     </div>
   );
 };
