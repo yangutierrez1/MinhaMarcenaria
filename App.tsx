@@ -16,7 +16,7 @@ import Button from './components/ui/Button';
 import { Project, Material, Client, Budget, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, AgendaEvent, BrandConfig, TaskStatus } from './types';
 import { STATUS_COLUMNS } from './constants';
 import { api } from './services/api';
-import { Bell, User, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
+import { User, Edit3, Save, Image as ImageIcon, Type, Upload, Trash2, Loader2, Menu } from 'lucide-react';
 
 const tabMeta: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Painel de Controle', subtitle: 'Visão geral' },
@@ -762,10 +762,6 @@ const App: React.FC = () => {
 
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto md:flex-1 justify-end">
              <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
-                <button className="relative p-3 text-[#2D4739] bg-white rounded-2xl shadow-md border border-[#2D473911] hover:scale-105 transition-all">
-                  <Bell size={20} />
-                  <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-[#FDFBE2]"></span>
-                </button>
                 <div className="flex items-center gap-4 group cursor-pointer" onClick={handleOpenBrandModal}>
                   <div className="text-right hidden xl:block">
                     <p className="text-sm font-black text-[#2D4739] transition-colors">{brandConfig.name}</p>

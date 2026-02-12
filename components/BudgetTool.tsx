@@ -74,6 +74,18 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
   const estimatedProfit = finalPrice - totalBaseCost;
   const pendingBudgetsList = useMemo(() => budgets.filter(b => b.status === 'Pendente'), [budgets]);
 
+  // Função para cálculo reverso da margem ao editar o preço final
+  const handleManualPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    const newPrice = Number(rawValue) / 100;
+
+    if (totalBaseCost > 0) {
+      // Cálculo Reverso: Margem = ((Preço / Custo) - 1) * 100
+      const newMargin = ((newPrice / totalBaseCost) - 1) * 100;
+      setProfitMargin(newMargin);
+    }
+  };
+
   const resetForm = () => {
     setSelectedClient('');
     setProjectTitle('');
@@ -317,7 +329,7 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-[#2D473966] uppercase tracking-widest flex items-center gap-2"><Percent size={14} /> Margem de Lucro Bruto</label>
                 <div className="relative">
-                  <input type="number" value={profitMargin} onChange={(e) => setProfitMargin(parseInt(e.target.value) || 0)} className="w-full p-4 bg-white rounded-2xl border-2 border-[#2D473908] font-black focus:border-[#6B8E23] outline-none" />
+                  <input type="number" value={profitMargin.toFixed(1)} onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)} className="w-full p-4 bg-white rounded-2xl border-2 border-[#2D473908] font-black focus:border-[#6B8E23] outline-none" />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B8E23] font-black">%</span>
                 </div>
               </div>
@@ -370,15 +382,30 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
         </div>
 
         <div className="space-y-8">
-          <div className="bg-[#2D4739] p-10 rounded-[4rem] text-white shadow-[0_40px_80px_rgba(45,71,57,0.3)] space-y-10 sticky top-10 border border-white/5 overflow-hidden">
+          <div className="bg-[#2D4739] p-10 rounded-[4rem] text-white shadow-[0_40px_80px_rgba(45,71,57,0.3)] space-y-10 sticky top-10 border border-white/5 overflow-hidden group/card">
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#6B8E23] opacity-10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
             
-            <div className="space-y-2 relative">
-               <h3 className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Fechamento Estimado</h3>
-               <p className="text-6xl font-black tracking-tighter">R$ {finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <div className="space-y-2 relative group">
+               <div className="flex justify-between items-center">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40">Fechamento Estimado</h3>
+                  <Edit2 size={12} className="opacity-20 group-hover:opacity-100 transition-opacity" />
+               </div>
+               <div className="relative">
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 text-4xl md:text-5xl font-black tracking-tighter opacity-50 select-none pointer-events-none">R$</span>
+                  <input 
+                    type="text" 
+                    value={finalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    onChange={handleManualPriceChange}
+                    disabled={totalBaseCost === 0}
+                    className={`w-full bg-transparent text-4xl md:text-5xl font-black tracking-tighter text-white outline-none pl-[2.2ch] placeholder-white/50 border-b border-transparent hover:border-white/20 focus:border-white/40 transition-all ${totalBaseCost === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+               </div>
+               {totalBaseCost === 0 && (
+                  <p className="text-[9px] text-red-300 font-bold uppercase mt-1">Adicione materiais ou mão de obra para calcular</p>
+               )}
                <div className="flex items-center gap-3 text-[#6B8E23] font-black text-[10px] uppercase tracking-[0.2em] mt-4">
                  <div className="p-2 bg-[#6B8E2322] rounded-lg"><TrendingUp size={16} /></div>
-                 <span>Lucro Líquido Previsto: R$ {estimatedProfit.toLocaleString('pt-BR')} ({profitMargin}%)</span>
+                 <span>Lucro Líquido Previsto: R$ {estimatedProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({profitMargin.toFixed(1)}%)</span>
                </div>
             </div>
 
