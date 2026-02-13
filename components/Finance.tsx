@@ -201,35 +201,6 @@ const Finance: React.FC<FinanceProps> = ({
       setIsProfitModalOpen(false);
   };
 
-  // Cálculo de Totais Acumulados (Todo o Período - Geral)
-  const allTimeTotals = useMemo(() => {
-    const projectsReceived = projects.reduce((sum, p) => {
-      if (p.isPaid) return sum + p.value;
-      if (p.isAdvancePaid) return sum + (p.advanceValue || 0);
-      return sum;
-    }, 0);
-
-    const manualReceived = manualRevenues.reduce((sum, r) => sum + r.value, 0);
-
-    const expensesPaid = fixedExpenses.reduce((sum, e) => {
-      if (e.isRecurring) {
-        return sum + (e.value * (e.paidMonths?.length || 0));
-      }
-      return e.status === 'Pago' ? sum + e.value : sum;
-    }, 0);
-
-    const debtsPaid = debts.reduce((sum, d) => d.status === 'Pago' ? sum + d.value : sum, 0);
-
-    const totalIn = projectsReceived + manualReceived;
-    const totalOut = expensesPaid + debtsPaid;
-
-    return {
-      totalIn,
-      totalOut,
-      balance: totalIn - totalOut
-    };
-  }, [projects, manualRevenues, fixedExpenses, debts]);
-
   // --- CÁLCULO DE SALDO ANTERIOR (MÊS PASSADO) ---
   const previousBalance = useMemo(() => {
     // Data de corte: Primeiro dia do mês selecionado
@@ -276,6 +247,35 @@ const Finance: React.FC<FinanceProps> = ({
 
     return balance;
   }, [selectedDate, projects, manualRevenues, fixedExpenses, debts]);
+
+  // Cálculo de Totais Acumulados (Todo o Período - Geral)
+  const allTimeTotals = useMemo(() => {
+    const projectsReceived = projects.reduce((sum, p) => {
+      if (p.isPaid) return sum + p.value;
+      if (p.isAdvancePaid) return sum + (p.advanceValue || 0);
+      return sum;
+    }, 0);
+
+    const manualReceived = manualRevenues.reduce((sum, r) => sum + r.value, 0);
+
+    const expensesPaid = fixedExpenses.reduce((sum, e) => {
+      if (e.isRecurring) {
+        return sum + (e.value * (e.paidMonths?.length || 0));
+      }
+      return e.status === 'Pago' ? sum + e.value : sum;
+    }, 0);
+
+    const debtsPaid = debts.reduce((sum, d) => d.status === 'Pago' ? sum + d.value : sum, 0);
+
+    const totalIn = projectsReceived + manualReceived;
+    const totalOut = expensesPaid + debtsPaid;
+
+    return {
+      totalIn,
+      totalOut,
+      balance: totalIn - totalOut
+    };
+  }, [projects, manualRevenues, fixedExpenses, debts]);
 
   // Filtra dados para o mês atual
   const filteredData = useMemo(() => {
@@ -1361,6 +1361,43 @@ const Finance: React.FC<FinanceProps> = ({
         confirmText={confirmConfig.confirmText}
         variant={confirmConfig.variant}
       />
+
+      {/* MAIN RETURN */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+        <div>
+          <h2 className="text-3xl font-black text-[#2D4739] tracking-tighter uppercase leading-none">Financeiro</h2>
+          <p className="text-[10px] font-black text-[#2D473966] uppercase tracking-[0.2em] mt-1">Gestão de Caixa e Resultados</p>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+           <div className="flex items-center bg-white p-1 rounded-2xl border border-[#2D473911] shadow-sm">
+              <button onClick={handlePrevMonth} className="p-3 hover:bg-[#FDFBE2] rounded-xl text-[#2D4739] transition-all"><ChevronLeft size={20} /></button>
+              <div className="px-6 text-center min-w-[140px]">
+                 <span className="text-xs font-black text-[#2D4739] uppercase tracking-widest block">{monthNames[selectedDate.getMonth()]}</span>
+                 <span className="text-[10px] font-bold text-[#2D473944]">{selectedDate.getFullYear()}</span>
+              </div>
+              <button onClick={handleNextMonth} className="p-3 hover:bg-[#FDFBE2] rounded-xl text-[#2D4739] transition-all"><ChevronRight size={20} /></button>
+           </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto custom-scrollbar">
+         <SubTabBtn active={activeSubTab === 'overview'} label="Visão Geral" onClick={() => setActiveSubTab('overview')} icon={<LayoutDashboard size={16} />} />
+         <SubTabBtn active={activeSubTab === 'receivables'} label="Entradas (Receber)" onClick={() => setActiveSubTab('receivables')} icon={<TrendingUp size={16} />} />
+         <SubTabBtn active={activeSubTab === 'expenses'} label="Saídas (Pagar)" onClick={() => setActiveSubTab('expenses')} icon={<TrendingDown size={16} />} />
+         <SubTabBtn active={activeSubTab === 'operational-fund'} label="Caixa Operacional" onClick={() => setActiveSubTab('operational-fund')} icon={<Archive size={16} />} />
+         <SubTabBtn active={activeSubTab === 'history'} label="Extrato Completo" onClick={() => setActiveSubTab('history')} icon={<History size={16} />} />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="min-h-[500px]">
+         {activeSubTab === 'overview' && renderOverview()}
+         {activeSubTab === 'receivables' && renderReceivables()}
+         {activeSubTab === 'expenses' && renderExpenses()}
+         {activeSubTab === 'operational-fund' && renderOperationalFund()}
+         {activeSubTab === 'history' && renderHistory()}
+      </div>
     </div>
   );
 };
