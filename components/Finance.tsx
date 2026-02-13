@@ -11,7 +11,7 @@ import {
   PieChart as PieIcon, Calculator, Coins, Package
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip, PieChart, Pie, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip
 } from 'recharts';
 import ConfirmDeleteModal from './ui/ConfirmDeleteModal';
 import Modal from './ui/Modal';
