@@ -11,7 +11,7 @@ import {
   PieChart as PieIcon, Calculator, Coins, Package
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip, PieChart, Pie, Cell
 } from 'recharts';
 import ConfirmDeleteModal from './ui/ConfirmDeleteModal';
 import Modal from './ui/Modal';
@@ -212,7 +212,7 @@ const Finance: React.FC<FinanceProps> = ({
 
     // 1. Entradas de Projetos (Anteriores)
     projects.forEach(p => {
-        // Usamos deadline como data base de caixa por enquanto (ou paymentDate se existisse)
+        // Usamos deadline como data base de caixa por enquanto
         if (p.deadline < startStr) {
              if (p.isPaid) balance += p.value;
              else if (p.isAdvancePaid) balance += (p.advanceValue || 0);
