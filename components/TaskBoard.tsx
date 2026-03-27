@@ -234,7 +234,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
     <div className="flex flex-col gap-12 animate-in fade-in duration-700 pb-20">
       
       {/* SEÇÃO 1: TAREFAS ATIVAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
         
         {/* COLUNA 1: PROJETOS INTERNOS PENDENTES */}
         <section className="bg-[#2D4739] rounded-[3rem] p-8 flex flex-col h-[650px] shadow-2xl shadow-[#2D473944]">
@@ -293,58 +293,6 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
               <div className="h-full flex flex-col items-center justify-center opacity-20">
                 <Target size={48} className="text-white mb-4" />
                 <p className="text-white text-xs font-black uppercase tracking-widest">Tudo em dia!</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* COLUNA 2: FLUXO DE PROJETOS PENDENTES (FILTRADO POR ABA) */}
-        <section className="bg-white/40 rounded-[3rem] border-2 border-[#2D473908] p-8 flex flex-col h-[650px]">
-          <div className="flex justify-between items-center mb-8 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-[#2D4739] text-[#FDFBE2] rounded-2xl">
-                <Hammer size={20} />
-              </div>
-              <h2 className="font-black text-[#2D4739] uppercase text-xs tracking-[0.3em]">Fluxo de Projetos</h2>
-            </div>
-            <div className="px-3 py-1.5 bg-[#6B8E2311] text-[#6B8E23] rounded-full text-[10px] font-black uppercase tracking-widest">
-              {projectTasksPending.length} Pendentes nesta aba
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-4">
-            {projectTasksPending.map((task, idx) => (
-              <div 
-                key={`${task.projectId}-${idx}`}
-                onClick={() => onToggleProjectSubtask(task.projectId, task.title)}
-                className="bg-white p-5 rounded-[2rem] border-2 border-[#2D473908] hover:border-[#6B8E23] transition-all cursor-pointer group shadow-sm"
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2 text-[#6B8E23]">
-                    <Briefcase size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-[#2D473988] truncate max-w-[150px]">{task.projectName}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                     <span className="text-[8px] font-black uppercase text-[#6B8E23] bg-[#6B8E2311] px-2 py-0.5 rounded-full">{task.phase}</span>
-                     <div className={`w-2 h-2 rounded-full ${task.priority === 'Urgente' ? 'bg-red-500 animate-pulse' : 'bg-[#6B8E23]'}`} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center transition-all bg-[#FDFBE2] text-[#2D473922] border border-[#2D473911] group-hover:text-[#6B8E23]"><Circle size={16} /></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-black text-[#2D4739] tracking-tight">{task.title}</p>
-                    <div className="flex items-center gap-2 mt-1 opacity-60">
-                      <Clock size={10} />
-                      <span className="text-[9px] font-black uppercase tracking-widest">Entrega {new Date(task.deadline).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {projectTasksPending.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center opacity-20">
-                <Hammer size={48} className="text-[#2D4739] mb-4" />
-                <p className="text-[#2D4739] text-xs font-black uppercase tracking-widest text-center">Nenhuma tarefa liberada<br/>nesta aba ainda.</p>
               </div>
             )}
           </div>
@@ -419,7 +367,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
       </div>
 
       {/* SEÇÃO 2: TAREFAS FINALIZADAS (CONCLUÍDAS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start opacity-60 hover:opacity-100 transition-opacity duration-500">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start opacity-60 hover:opacity-100 transition-opacity duration-500">
         
         {/* COLUNA 1: PROJETOS INTERNOS CONCLUÍDOS */}
         <section className="bg-white/20 border-2 border-dashed border-[#2D473911] rounded-[3rem] p-8 space-y-6 min-h-[300px]">
@@ -450,30 +398,6 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             ))}
             {complexTasksDone.length === 0 && (
               <p className="text-center text-[9px] font-black uppercase tracking-[0.2em] text-[#2D473911] py-10 italic">Nenhuma tarefa arquivada</p>
-            )}
-          </div>
-        </section>
-
-        {/* COLUNA 2: FLUXO DE PROJETOS CONCLUÍDOS */}
-        <section className="bg-white/20 border-2 border-dashed border-[#2D473911] rounded-[3rem] p-8 space-y-6 min-h-[300px]">
-          <div className="flex items-center gap-3 text-[#2D473944]">
-            <History size={16} />
-            <h3 className="text-[10px] font-black uppercase tracking-widest">Histórico de Peças</h3>
-          </div>
-          <div className="space-y-4">
-            {projectTasksDone.map((task, idx) => (
-              <div key={`${task.projectId}-${idx}`} className="bg-white/40 p-5 rounded-[2rem] border border-[#2D473908] flex items-center justify-between group">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-[#2D473966] line-through truncate tracking-tight">{task.title}</p>
-                  <p className="text-[8px] font-black uppercase tracking-widest text-[#2D473922] mt-1">{task.projectName}</p>
-                </div>
-                <button onClick={() => onToggleProjectSubtask(task.projectId, task.title)} className="p-2 text-[#6B8E23] hover:bg-white rounded-xl transition-all">
-                  <CheckCircle2 size={20} />
-                </button>
-              </div>
-            ))}
-            {projectTasksDone.length === 0 && (
-              <p className="text-center text-[9px] font-black uppercase tracking-[0.2em] text-[#2D473911] py-10 italic">Nenhum histórico</p>
             )}
           </div>
         </section>
