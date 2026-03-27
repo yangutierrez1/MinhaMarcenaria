@@ -178,7 +178,7 @@ const App: React.FC = () => {
       }
     };
     initData();
-  }, [session?.user?.id]); // Dependência alterada de [session] para [session?.user?.id]
+  }, [session?.user?.id, session?.user?.email]); // Dependência alterada de [session] para [session?.user?.id]
 
   const handleOpenBrandModal = () => {
     setTempBrandConfig(brandConfig);
@@ -722,7 +722,7 @@ const App: React.FC = () => {
 
   const handleSaveBudget = async (budgetData: any) => {
     // Separa dados extras que não existem na tabela budgets
-    const { subtasks, operationalCosts, ...cleanBudget } = budgetData;
+    const { operationalCosts, ...cleanBudget } = budgetData;
     
     // Embutir custos na descrição se houver (para persistência sem alterar schema)
     // Tenta recuperar descrição existente ou gerar uma
@@ -861,8 +861,6 @@ const App: React.FC = () => {
         </header>
         <section className="animate-fade-in w-full">{renderContent()}</section>
       </main>
-
-      {/* MODAL DE EDIÇÃO DA MARCA / PERFIL */}
       <Modal
         isOpen={isBrandModalOpen}
         onClose={() => setIsBrandModalOpen(false)}

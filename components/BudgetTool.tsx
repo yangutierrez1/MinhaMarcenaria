@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Material, Client, Budget, TaskStatus, ProjectSubtask, BudgetEnvironmentInfo } from '../types';
-import { Calculator, Plus, Trash2, CheckCircle2, Clock, Check, ListChecks, Hammer, Layout, X, Save, ArrowRight, AlertTriangle, ChevronDown, Percent, Coins, TrendingUp, Package, MoreVertical, Edit2, Calendar as CalendarIcon, Sparkles, Zap, DollarSign } from 'lucide-react';
+import { Calculator, Plus, Trash2, CheckCircle2, Clock, ListChecks, Layout, Save, ArrowRight, AlertTriangle, ChevronDown, Coins, TrendingUp, Package, Edit2, Calendar as CalendarIcon, Zap, DollarSign } from 'lucide-react';
 
 interface BudgetToolProps {
   materials: Material[];
@@ -26,7 +26,7 @@ const DEFAULT_OVERHEADS = [
 const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, onApprove, onSavePending, onDeleteBudget }) => {
   const [selectedClient, setSelectedClient] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
-  const [deadline, setDeadline] = useState(new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [deadline, setDeadline] = useState(() => new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   const [budgetToDelete, setBudgetToDelete] = useState<{id: string, title: string} | null>(null);
   const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
   const [laborInput, setLaborInput] = useState('0,00');
@@ -42,12 +42,10 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
 
   const [activeConfigPhase, setActiveConfigPhase] = useState<TaskStatus>('Preparação');
   const [newTaskInput, setNewTaskInput] = useState('');
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   
   // State for Operational Costs
   const [operationalCosts, setOperationalCosts] = useState<{name: string, value: number}[]>(DEFAULT_OVERHEADS);
 
-  const menuRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const [phaseTasks, setPhaseTasks] = useState<Record<TaskStatus, string[]>>({
@@ -56,16 +54,6 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
     'Montagem': ['Furação de Ferragens', 'Montagem das Caixas', 'Instalação de Trilhos'],
     'Entrega': ['Limpeza Fina', 'Instalação de Puxadores', 'Transporte e Logística']
   });
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setActiveMenuId(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -257,7 +245,7 @@ const BudgetTool: React.FC<BudgetToolProps> = ({ materials, clients, budgets, on
        if (opsMatch && opsMatch[1]) {
           try {
              setOperationalCosts(JSON.parse(opsMatch[1]));
-          } catch(e) {
+          } catch {
              setOperationalCosts(DEFAULT_OVERHEADS);
           }
        } else {

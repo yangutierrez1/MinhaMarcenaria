@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Leaf, Mail, Lock, Loader2, ArrowRight, AlertCircle, CheckCircle2, UserPlus, LogIn, Eye } from 'lucide-react';
 
-interface AuthProps {}
-
-const Auth: React.FC<AuthProps> = () => {
+const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');

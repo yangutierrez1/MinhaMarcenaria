@@ -144,7 +144,10 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   };
 
   const handleDuplicateTask = (task: ManualTask) => {
-    const { id, completed, ...taskToCopy } = task;
+    const taskToCopy = { ...task };
+    delete (taskToCopy as any).id;
+    delete (taskToCopy as any).completed;
+    
     onAddTask({
       ...taskToCopy,
       title: `${taskToCopy.title} (Cópia)`
@@ -624,7 +627,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                           onClick={(e) => {
                             // Tenta abrir o picker nativo programaticamente se suportado, para garantir comportamento
                             if ('showPicker' in HTMLInputElement.prototype) {
-                              try { e.currentTarget.showPicker(); } catch (err) {}
+                              try { e.currentTarget.showPicker(); } catch { /* ignore */ }
                             }
                           }}
                         />

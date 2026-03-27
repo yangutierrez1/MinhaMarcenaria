@@ -2,9 +2,9 @@
 import { Material, Client, Project, Budget, ManualTask, ManualPendency, FixedExpense, Debt, ManualRevenue, AgendaEvent } from './types';
 
 // --- DATA HELPERS ---
-const today = new Date();
-const formatDate = (date: Date) => date.toISOString().split('T')[0];
-const addDays = (days: number) => {
+export const today = new Date();
+export const formatDate = (date: Date) => date.toISOString().split('T')[0];
+export const addDays = (days: number) => {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return formatDate(d);

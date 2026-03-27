@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Project, TaskStatus, Client } from '../types';
+import { Project, Client } from '../types';
 import { STATUS_COLUMNS } from '../constants';
 import { 
   CheckSquare, 

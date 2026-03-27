@@ -75,12 +75,12 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 
   // --- MOCK DB QUERY BUILDER ---
   const createMockChain = (table: string) => {
-    let db = loadDb();
-    let queryData = db[table] || [];
-    let error: any = null;
+    const db = loadDb();
+    const queryData = db[table] || [];
+    const error: any = null;
 
     return {
-      select: (columns = '*') => {
+      select: () => {
         // Return a promise that resolves to the data
         return Promise.resolve({ data: queryData, error });
       },

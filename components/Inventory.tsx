@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Material } from '../types';
-import { Plus, Edit2, Trash2, Save, Package, Coins, Search, Layers, DollarSign, Store, Calculator, Calendar, Tag, ChevronDown, ListPlus, XCircle, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, Package, Coins, Search, Layers, DollarSign, Calendar, ChevronDown, ListPlus, XCircle, RefreshCw } from 'lucide-react';
 import { formatBRL, parseCurrencyInput } from '../utils/format';
 import Modal from './ui/Modal';
 import Button from './ui/Button';

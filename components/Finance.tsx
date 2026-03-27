@@ -4,14 +4,14 @@ import { Project, Material, Budget, FixedExpense, Debt, ManualRevenue } from '..
 import { 
   DollarSign, TrendingUp, TrendingDown, Plus, Trash2, Save, X, 
   AlertTriangle,
-  Banknote, Receipt, Truck, Calendar,
-  ChevronLeft, ChevronRight, ShoppingBag, Search, Tag, ArrowDownRight,
-  Check, Clock, Wallet, History, ArrowUpRight, Layers, RotateCcw,
+  Banknote, Receipt, Truck, Calendar, Check,
+  ChevronLeft, ChevronRight, ShoppingBag, ArrowDownRight,
+  Clock, Wallet, History, ArrowUpRight, RotateCcw,
   Edit2, FileText, LayoutDashboard, Landmark, Archive, ShoppingCart,
-  PieChart as PieIcon, Calculator, Coins, Package
+  PieChart as PieIcon, Calculator, Package
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip, PieChart, Pie, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as ReTooltip
 } from 'recharts';
 import ConfirmDeleteModal from './ui/ConfirmDeleteModal';
 import Modal from './ui/Modal';
@@ -78,7 +78,7 @@ const Finance: React.FC<FinanceProps> = ({
   projects, materials, fixedExpenses, debts, manualRevenues,
   onAddFixedExpense, onDeleteFixedExpense, onToggleExpenseStatus, onUpdateFixedExpense,
   onToggleDebtStatus, onUpdateDebt, onAddDebt, onDeleteDebt, onAddManualRevenue, 
-  onDeleteManualRevenue, onUpdateProject, onNavigate, monthlyGoal, setMonthlyGoal
+  onDeleteManualRevenue, onUpdateProject
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'receivables' | 'expenses' | 'operational-fund' | 'history'>('overview');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -728,7 +728,7 @@ const Finance: React.FC<FinanceProps> = ({
                    }
                 });
              }
-          } catch(e) { /* ignore */ }
+          } catch { /* ignore */ }
        }
     });
 
@@ -1075,7 +1075,11 @@ const Finance: React.FC<FinanceProps> = ({
           ))}
         </div>
       </div>
+    </div>
+  );
 
+  return (
+    <div className="space-y-6">
       {/* Universal Finance Modal */}
       {isModalOpen && createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-[#1A2E24]/90 backdrop-blur-md animate-in fade-in duration-300">
@@ -1172,7 +1176,7 @@ const Finance: React.FC<FinanceProps> = ({
                             className="w-full p-4 bg-white rounded-2xl border border-[#2D473911] font-black outline-none relative z-10 bg-transparent"
                             onClick={(e) => {
                               if ('showPicker' in HTMLInputElement.prototype) {
-                                try { e.currentTarget.showPicker(); } catch (err) {}
+                                try { e.currentTarget.showPicker(); } catch { /* ignore */ }
                               }
                             }}
                           />

@@ -54,7 +54,7 @@ const typeIcons: Record<EventType, React.ReactNode> = {
   'Pessoal': <User size={12} />
 };
 
-const Agenda: React.FC<AgendaProps> = ({ events, projects, clients, onAddEvent, onUpdateEvent, onDeleteEvent }) => {
+const Agenda: React.FC<AgendaProps> = ({ events, onAddEvent, onUpdateEvent, onDeleteEvent }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // Modals State
