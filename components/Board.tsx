@@ -16,7 +16,8 @@ import {
   DollarSign,
   RotateCcw,
   History,
-  CheckCircle2
+  CheckCircle2,
+  Plus
 } from 'lucide-react';
 
 interface BoardProps {
@@ -41,6 +42,10 @@ const Board: React.FC<BoardProps> = ({ projects, setProjects, clients, onMarkAsP
   // 🔥 ESTADOS DO MODAL DE EXCLUSÃO
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskPhase, setNewSubtaskPhase] = useState<any>('Preparação');
 
   const getClientName = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
@@ -105,6 +110,28 @@ const Board: React.FC<BoardProps> = ({ projects, setProjects, clients, onMarkAsP
     if (onUpdateProject) {
       onUpdateProject(id, { isPaid: false });
     }
+  };
+
+  const handleAddSubtask = () => {
+    if (!selectedProject || !newSubtaskTitle.trim()) return;
+
+    const newSubtask = {
+      title: newSubtaskTitle.trim(),
+      completed: false,
+      phase: newSubtaskPhase,
+    };
+
+    const updatedSubtasks = [...selectedProject.subtasks, newSubtask];
+
+    if (onUpdateProject) {
+      onUpdateProject(selectedProject.id, { subtasks: updatedSubtasks });
+    } else {
+      setProjects(prev => prev.map(p => p.id === selectedProject.id ? { ...p, subtasks: updatedSubtasks } : p));
+    }
+
+    setSelectedProject(prev => prev ? { ...prev, subtasks: updatedSubtasks } : null);
+    setNewSubtaskTitle('');
+    setIsAddingSubtask(false);
   };
 
   const activeProjects = projects.filter(p => !p.isPaid);
@@ -431,9 +458,61 @@ const Board: React.FC<BoardProps> = ({ projects, setProjects, clients, onMarkAsP
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-[10px] font-black text-[#6B8E23] uppercase tracking-[0.4em] border-b border-[#2D473911] pb-3">
-                  Checklist de Produção
-                </h4>
+                <div className="flex justify-between items-center border-b border-[#2D473911] pb-3">
+                  <h4 className="text-[10px] font-black text-[#6B8E23] uppercase tracking-[0.4em]">
+                    Checklist de Produção
+                  </h4>
+                  {!selectedProject.isPaid && (
+                    <button
+                      onClick={() => setIsAddingSubtask(true)}
+                      className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#2D4739] hover:text-[#6B8E23] transition-colors"
+                    >
+                      <Plus size={12} /> Adicionar
+                    </button>
+                  )}
+                </div>
+                
+                {isAddingSubtask && (
+                  <div className="bg-white p-4 rounded-[1.5rem] border-2 border-[#6B8E23] shadow-sm animate-in slide-in-from-top-2 duration-200">
+                    <div className="flex flex-col gap-3">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newSubtaskTitle}
+                        onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                        placeholder="Nome da tarefa..."
+                        className="w-full bg-[#FDFBE2] border border-[#2D473911] rounded-xl p-3 text-sm font-black text-[#2D4739] outline-none"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={newSubtaskPhase}
+                          onChange={(e) => setNewSubtaskPhase(e.target.value as any)}
+                          className="flex-1 bg-[#FDFBE2] border border-[#2D473911] rounded-xl p-3 text-xs font-black text-[#2D4739] outline-none uppercase tracking-widest"
+                        >
+                          {STATUS_COLUMNS.map(col => (
+                            <option key={col} value={col}>{col}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleAddSubtask}
+                          className="px-6 py-3 bg-[#6B8E23] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#55701c] transition-colors"
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsAddingSubtask(false);
+                            setNewSubtaskTitle('');
+                          }}
+                          className="p-3 text-[#2D473944] hover:text-[#2D4739] hover:bg-[#2D473911] rounded-xl transition-colors"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid gap-3">
                   {selectedProject.subtasks.map((task, i) => (
                     <div
