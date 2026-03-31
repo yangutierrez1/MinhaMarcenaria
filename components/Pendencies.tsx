@@ -92,16 +92,16 @@ const Pendencies: React.FC<PendenciesProps> = ({ pendencies, onAddPendency, onTo
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pendingList.length > 0 ? pendingList.map(p => (
-            <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-[#2D473911] shadow-xl shadow-[#2D473908] flex items-center justify-between group hover:border-[#6B8E23] transition-all">
-              <div className="flex items-center gap-6 flex-1 min-w-0">
+            <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-[#2D473911] shadow-xl shadow-[#2D473908] flex items-start justify-between group hover:border-[#6B8E23] transition-all">
+              <div className="flex items-start gap-6 flex-1 min-w-0">
                 <button 
                   onClick={() => onTogglePendency(p.id)}
-                  className="w-10 h-10 rounded-2xl border-2 border-[#2D473911] flex items-center justify-center text-[#2D473911] hover:border-[#6B8E23] hover:text-[#6B8E23] transition-all bg-[#FDFBE2]/30 flex-shrink-0"
+                  className="w-10 h-10 rounded-2xl border-2 border-[#2D473911] flex items-center justify-center text-[#2D473911] hover:border-[#6B8E23] hover:text-[#6B8E23] transition-all bg-[#FDFBE2]/30 flex-shrink-0 mt-1"
                 >
                   <Circle size={20} />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xl font-black text-[#2D4739] tracking-tight truncate">{p.text}</p>
+                  <p className="text-xl font-black text-[#2D4739] tracking-tight break-words whitespace-pre-wrap" title={p.text}>{p.text}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-[#2D473944] mt-1">
                     Criado em {new Date(p.createdAt).toLocaleDateString()}
                   </p>
@@ -109,7 +109,7 @@ const Pendencies: React.FC<PendenciesProps> = ({ pendencies, onAddPendency, onTo
               </div>
               <button 
                 onClick={() => initiateDelete(p.id)}
-                className="ml-4 p-3 text-[#2D473922] hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                className="ml-4 p-3 text-[#2D473922] hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all opacity-0 group-hover:opacity-100 flex-shrink-0 mt-1"
                 title="Excluir"
               >
                 <Trash2 size={20} />
@@ -134,15 +134,15 @@ const Pendencies: React.FC<PendenciesProps> = ({ pendencies, onAddPendency, onTo
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 opacity-60 hover:opacity-100 transition-opacity duration-500">
             {completedList.map(p => (
-              <div key={p.id} className="bg-white/50 p-5 rounded-[2rem] border border-[#2D473908] flex items-center justify-between group hover:bg-white transition-all">
-                <div className="flex items-center gap-5 flex-1 min-w-0">
+              <div key={p.id} className="bg-white/50 p-5 rounded-[2rem] border border-[#2D473908] flex items-start justify-between group hover:bg-white transition-all">
+                <div className="flex items-start gap-5 flex-1 min-w-0">
                   <button 
                     onClick={() => onTogglePendency(p.id)}
-                    className="w-8 h-8 rounded-xl bg-[#6B8E23] text-white flex items-center justify-center shadow-lg flex-shrink-0"
+                    className="w-8 h-8 rounded-xl bg-[#6B8E23] text-white flex items-center justify-center shadow-lg flex-shrink-0 mt-0.5"
                   >
                     <CheckCircle2 size={16} />
                   </button>
-                  <p className="text-base font-black text-[#2D473966] line-through truncate tracking-tight">{p.text}</p>
+                  <p className="text-base font-black text-[#2D473966] line-through break-words whitespace-pre-wrap tracking-tight" title={p.text}>{p.text}</p>
                 </div>
                 <button 
                   onClick={() => initiateDelete(p.id)}

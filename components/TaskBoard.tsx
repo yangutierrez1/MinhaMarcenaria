@@ -268,7 +268,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                 {activeMenuId === task.id && renderCardMenu(task)}
 
                 <div>
-                  <h4 className="text-white font-black text-lg leading-tight tracking-tight">{task.title}</h4>
+                  <h4 className="text-white font-black text-lg leading-tight tracking-tight break-words" title={task.title}>{task.title}</h4>
                   {task.responsibles && task.responsibles.length > 0 && (
                      <div className="flex flex-wrap gap-1 mt-2">
                        {task.responsibles.map(r => (
@@ -323,7 +323,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     <Circle className="text-[#2D473922] group-hover:text-[#6B8E23]" size={22} />
                   </button>
                   <div className="flex-1 cursor-pointer" onClick={() => onToggleManual(task.id)}>
-                    <p className="text-sm font-black text-[#2D4739] tracking-tight">{task.title}</p>
+                    <p className="text-sm font-black text-[#2D4739] tracking-tight break-words" title={task.title}>{task.title}</p>
                   </div>
                   <button 
                     onClick={() => setActiveMenuId(activeMenuId === task.id ? null : task.id)}
@@ -379,7 +379,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             {complexTasksDone.map(task => (
               <div key={task.id} className="relative bg-white/40 p-5 rounded-[2rem] border border-[#2D473908] flex items-center justify-between group">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-[#2D473966] line-through truncate tracking-tight">{task.title}</p>
+                  <p className="text-sm font-black text-[#2D473966] line-through break-words tracking-tight" title={task.title}>{task.title}</p>
                   <p className="text-[8px] font-black uppercase tracking-widest text-[#2D473922] mt-1">Concluído</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -412,7 +412,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             {routineTasksDone.map(task => (
               <div key={task.id} className="relative bg-white/40 p-5 rounded-[2rem] border border-[#2D473908] flex items-center justify-between group">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-[#2D473966] line-through truncate tracking-tight">{task.title}</p>
+                  <p className="text-sm font-black text-[#2D473966] line-through break-words tracking-tight" title={task.title}>{task.title}</p>
                 </div>
                 <div className="flex items-center gap-2">
                    <button 
